@@ -9,11 +9,11 @@ Sidecar serves two purposes: (a) one-time setup of the local proxy, and (b) on-d
 
 ## Locating the skill from bash
 
-The plugin lives somewhere under `$HOME/mnt/.local-plugins/` or `$HOME/mnt/.remote-plugins/`. The exact intermediate directory varies — `cache/<source>/<plugin>/` for marketplace caches, `plugin_<id>/` for direct installs — so use a path-tolerant `find` rooted at the parent dirs and let it match through whatever shape the install took:
+The plugin lives somewhere under `$HOME/mnt/.local-plugins/` or `$HOME/mnt/.remote-plugins/`. The intermediate directory varies — Cowork uses `cache/<source>/<plugin>/` for marketplace caches but `plugin_<id>/` (an opaque internal id) for remote installs. The plugin's own folder name is therefore **not guaranteed to be "sidecar"**, so the `find` pattern matches only on the trailing `*/skills/sidecar` segment and lets the intermediate directory be anything:
 
 ```bash
 SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins" "$HOME/mnt/.remote-plugins" \
-  -type d -path '*/sidecar/skills/sidecar' 2>/dev/null | head -1)
+  -type d -path '*/skills/sidecar' 2>/dev/null | head -1)
 ```
 
 `$SIDECAR_SKILL` then points at the skill root, with `proxy/` and `scripts/` inside it. All scripts are at `$SIDECAR_SKILL/scripts/`.
@@ -25,7 +25,7 @@ The user's `.env.local` lives in a writable state directory under whichever fold
 ## Step 0 — Always start here: is Sidecar configured?
 
 ```bash
-SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins" "$HOME/mnt/.remote-plugins" -type d -path '*/sidecar/skills/sidecar' 2>/dev/null | head -1)
+SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins" "$HOME/mnt/.remote-plugins" -type d -path '*/skills/sidecar' 2>/dev/null | head -1)
 STATE=$(ls -d "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
 if [ -z "$SIDECAR_SKILL" ]; then echo "MODE=plugin-not-found"
 elif [ -z "$STATE" ] || [ ! -f "$STATE/.env.local" ]; then echo "MODE=needs-setup"
