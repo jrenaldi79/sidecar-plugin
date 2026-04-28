@@ -95,16 +95,37 @@ else
 fi
 echo
 
+# Outbound-connectivity probe. Many Cowork sandboxes restrict network egress
+# to an allow-listed set of domains. If openrouter.ai isn't reachable now,
+# Sidecar can't talk to upstream models — surface this clearly here rather
+# than letting the user discover it through silent test failures later.
+echo "Checking outbound connectivity to openrouter.ai..."
+HTTP_CODE=$(curl -sS --max-time 10 -o /dev/null -w "%{http_code}" \
+  https://openrouter.ai/api/v1/models 2>/dev/null || echo "failed")
+if [ "$HTTP_CODE" = "200" ]; then
+  ok "openrouter.ai reachable (HTTP 200)"
+else
+  warn "openrouter.ai NOT reachable from this sandbox (got: $HTTP_CODE)"
+  warn "Add the domain to your Cowork allow list before using Sidecar:"
+  warn "  Settings ▸ Capabilities ▸ Allowed domains  →  add 'openrouter.ai'"
+  warn "Or, for testing, switch the same panel to 'Allow all domains'."
+  warn "After updating, rerun setup.sh to re-probe."
+fi
+echo
+
 echo "=== Setup complete ==="
 cat <<EOF
 Next steps:
   1. Open $ENV_FILE and set OPENROUTER_API_KEY to your key from
      https://openrouter.ai/keys (anything starting with sk-or-).
-  2. (Optional) Pick a model:
+  2. If the openrouter.ai connectivity check above failed, update Cowork's
+     Settings ▸ Capabilities to allow openrouter.ai (or all domains for
+     testing) and rerun this script.
+  3. (Optional) Pick a model:
        bash $SCRIPT_DIR/list-models.sh gemini   # search the catalog
        bash $SCRIPT_DIR/set-model.sh google/gemini-3-flash-preview
-  3. Verify everything works:
+  4. Verify everything works:
        bash $SCRIPT_DIR/test.sh
-  4. Send a prompt:
+  5. Send a prompt:
        bash $SCRIPT_DIR/ask.sh "your question here"
 EOF

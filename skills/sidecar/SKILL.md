@@ -46,18 +46,24 @@ else echo "MODE=ready"; fi
    ```bash
    bash "$SIDECAR_SKILL/scripts/setup.sh"
    ```
-   Idempotent. Verifies prereqs, ensures the vendored proxy is intact, creates `<connected-folder>/.sidecar/` if missing, and seeds `.env.local` from template.
+   Idempotent. Verifies prereqs, ensures the vendored proxy is intact, creates `<connected-folder>/.sidecar/` if missing, seeds `.env.local` from template, and probes outbound connectivity to `openrouter.ai`.
 
-2. **Prompt for the OpenRouter key.** If `.env.local` still has `REPLACE_WITH_YOUR_OPENROUTER_KEY`, ask the user for their key (https://openrouter.ai/keys), then Edit the `.env.local` file. **Never** log or echo the key.
+2. **Confirm the openrouter.ai allow-list.** Cowork sandboxes restrict outbound traffic to allow-listed domains. If `setup.sh` reported `openrouter.ai NOT reachable`, tell the user to:
 
-3. **Pick a default model** if the user has a preference:
+   > Open Cowork Settings ▸ Capabilities ▸ Allowed domains and add `openrouter.ai` (or temporarily flip "Allow all domains" for testing). Then rerun `setup.sh` to confirm the probe passes.
+
+   Without this step, every Sidecar request will fail with DNS errors regardless of the API key.
+
+3. **Prompt for the OpenRouter key.** If `.env.local` still has `REPLACE_WITH_YOUR_OPENROUTER_KEY`, ask the user for their key (https://openrouter.ai/keys), then Edit the `.env.local` file. **Never** log or echo the key.
+
+4. **Pick a default model** if the user has a preference:
    ```bash
    bash "$SIDECAR_SKILL/scripts/list-models.sh" gemini       # filter by vendor
    bash "$SIDECAR_SKILL/scripts/set-model.sh" <exact-slug>   # validates against catalog
    ```
    If no preference, leave the template default (`google/gemini-3-flash-preview`).
 
-4. **Verify.**
+5. **Verify.**
    ```bash
    bash "$SIDECAR_SKILL/scripts/test.sh"
    ```

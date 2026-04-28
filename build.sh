@@ -14,7 +14,10 @@
 set -eu
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PROXY_DIR="$DIR/skills/sidecar/proxy"
-ENTRY="$PROXY_DIR/node_modules/anthropic-proxy/index.js"
+ENTRY="$PROXY_DIR/wrapper.mjs"   # was: node_modules/anthropic-proxy/index.js
+                                 # wrapper.mjs sets a global undici dispatcher
+                                 # before loading anthropic-proxy so fetch()
+                                 # honors HTTP_PROXY/HTTPS_PROXY in sandboxes.
 BUNDLE="$PROXY_DIR/bundle.cjs"
 OUTNAME="sidecar.plugin"
 OUTDIR="$(cd "$DIR/.." && pwd)"
@@ -25,7 +28,10 @@ echo "  output: $OUTDIR/$OUTNAME"
 echo
 
 # 1. Vendor deps for bundling (dev-only — not shipped).
-if [ ! -f "$ENTRY" ]; then
+# Wrapper.mjs imports anthropic-proxy and undici from node_modules; both must
+# be present locally for esbuild to resolve and bundle them.
+DEPS_MARKER="$PROXY_DIR/node_modules/anthropic-proxy/index.js"
+if [ ! -f "$DEPS_MARKER" ]; then
   echo "vendoring proxy dependencies (npm ci)..."
   ( cd "$PROXY_DIR" && npm ci 2>&1 | tail -5 )
 else
