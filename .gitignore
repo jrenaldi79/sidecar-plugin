@@ -1,0 +1,18 @@
+# Vendored npm dependencies — restored by build.sh / scripts/setup.sh.
+# Tracked separately via package.json + package-lock.json.
+skills/sidecar/proxy/node_modules/
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Build artifacts
+*.plugin
+build/
+dist/
+
+# Editor caches
+.vscode/
+.idea/
+*.swp
+*.swo
