@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/node_modules/anthropic-proxy/index.js"
+PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
 PASS=0; FAIL=0
 note() { echo "  - $*"; }
 pass() { echo "  PASS: $*"; PASS=$((PASS+1)); }
@@ -31,7 +31,7 @@ echo "  claude:       $(command -v claude || echo MISSING) $(claude --version 2>
 
 echo
 echo "=== install check ==="
-[ -f "$PROXY_ENTRY" ] && pass "vendored proxy installed" || fail "vendored proxy missing at $PROXY_ENTRY"
+[ -f "$PROXY_ENTRY" ] && pass "bundled proxy installed" || fail "bundled proxy missing at $PROXY_ENTRY"
 [ -f "$ENV_FILE" ] && pass ".env.local present" || fail ".env.local missing — run setup.sh"
 
 if [ -f "$ENV_FILE" ]; then

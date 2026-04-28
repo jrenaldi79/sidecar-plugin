@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup.sh — first-run configuration for Sidecar (plugin install).
 #
-# The plugin ships with anthropic-proxy already vendored under proxy/node_modules,
+# The plugin ships with anthropic-proxy bundled at proxy/bundle.cjs,
 # so no npm install is needed. This script just creates a per-user state directory
 # (default: <connected-folder>/.sidecar/) and seeds it with .env.local from the
 # template. Idempotent.
@@ -40,10 +40,10 @@ fi
 echo
 
 # Verify the plugin's vendored proxy is intact
-if [ -f "$SIDECAR_PLUGIN_DIR/proxy/node_modules/anthropic-proxy/index.js" ]; then
-  ok "vendored proxy at $SIDECAR_PLUGIN_DIR/proxy/"
+if [ -f "$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs" ]; then
+  ok "bundled proxy at $SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
 else
-  err "vendored proxy missing at $SIDECAR_PLUGIN_DIR/proxy/node_modules/anthropic-proxy/"
+  err "bundled proxy missing at $SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
   err "Plugin install may be corrupt — reinstall the plugin."
   exit 1
 fi

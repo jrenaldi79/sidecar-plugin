@@ -79,7 +79,7 @@ echo "  COMPLETION_MODEL = $COMPLETION"
 echo "  REASONING_MODEL  = $REASONING"
 
 # Restart proxy if running
-PIDS=$(pgrep -f "node.*node_modules/anthropic-proxy/index" 2>/dev/null || true)
+PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
   echo "restarting proxy (was pid: $PIDS)..."
   kill $PIDS 2>/dev/null

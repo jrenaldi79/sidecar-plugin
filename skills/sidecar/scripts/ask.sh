@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/node_modules/anthropic-proxy/index.js"
+PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
 
 # Pick a writable log path
 for cand in "${TMPDIR:-/tmp}/sidecar-ask.log" "$HOME/sidecar-ask.log" "./sidecar-ask.log"; do
@@ -40,7 +40,7 @@ fi
 set -a; source "$ENV_FILE"; set +a
 
 if [ ! -f "$PROXY_ENTRY" ]; then
-  echo "ask.sh: vendored proxy missing at $PROXY_ENTRY" >&2
+  echo "ask.sh: bundled proxy missing at $PROXY_ENTRY" >&2
   exit 1
 fi
 
