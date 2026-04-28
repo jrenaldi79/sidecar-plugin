@@ -13,9 +13,14 @@ note() { echo "  - $*"; }
 pass() { echo "  PASS: $*"; PASS=$((PASS+1)); }
 fail() { echo "  FAIL: $*"; FAIL=$((FAIL+1)); }
 
-# writable log path
-for cand in "$HOME/sidecar-test.log" "/tmp/sidecar-test.log" "./sidecar-test.log"; do
-  if : > "$cand" 2>/dev/null; then LOG="$cand"; break; fi
+# Pick a writable directory for the test log (probe via [ -w ] to avoid
+# noisy "Permission denied" leaks when /tmp is locked down).
+LOG=""
+for cand_dir in "$HOME" "${TMPDIR:-/tmp}" "."; do
+  if [ -d "$cand_dir" ] && [ -w "$cand_dir" ]; then
+    LOG="$cand_dir/sidecar-test.log"
+    break
+  fi
 done
 LOG="${LOG:-$HOME/sidecar-test.log}"
 

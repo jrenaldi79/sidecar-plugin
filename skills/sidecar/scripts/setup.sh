@@ -55,7 +55,17 @@ if [ ! -d "$SIDECAR_STATE_DIR" ]; then
   # Make sure the parent of state dir exists and is writable
   PARENT="$(dirname "$SIDECAR_STATE_DIR")"
   if [ ! -d "$PARENT" ]; then
-    err "$PARENT does not exist. Connect a folder to Cowork first, or set SIDECAR_STATE_DIR."
+    err "$PARENT does not exist."
+    AVAILABLE=$(ls -d "$HOME"/mnt/*/ 2>/dev/null \
+      | grep -v -E '/(outputs|uploads|\..*)/$' || true)
+    if [ -n "$AVAILABLE" ]; then
+      err "Available connected folders:"
+      printf '%s\n' "$AVAILABLE" | sed 's|^|    |' >&2
+      err "Set SIDECAR_STATE_DIR=<one of those>/.sidecar and retry,"
+      err "or rerun setup.sh after connecting the folder you want to use."
+    else
+      err "No connected folders detected. Connect a folder to Cowork first."
+    fi
     exit 1
   fi
   if ! mkdir -p "$SIDECAR_STATE_DIR" 2>/dev/null; then

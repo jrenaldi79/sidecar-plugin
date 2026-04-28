@@ -9,23 +9,23 @@ Sidecar serves two purposes: (a) one-time setup of the local proxy, and (b) on-d
 
 ## Locating the skill from bash
 
-The plugin lives somewhere under `$HOME/mnt/.local-plugins/cache/` or `$HOME/mnt/.remote-plugins/cache/`. Use this snippet whenever you need to invoke a Sidecar script:
+The plugin lives somewhere under `$HOME/mnt/.local-plugins/` or `$HOME/mnt/.remote-plugins/`. The exact intermediate directory varies — `cache/<source>/<plugin>/` for marketplace caches, `plugin_<id>/` for direct installs — so use a path-tolerant `find` rooted at the parent dirs and let it match through whatever shape the install took:
 
 ```bash
-SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins/cache" "$HOME/mnt/.remote-plugins/cache" \
+SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins" "$HOME/mnt/.remote-plugins" \
   -type d -path '*/sidecar/skills/sidecar' 2>/dev/null | head -1)
 ```
 
 `$SIDECAR_SKILL` then points at the skill root, with `proxy/` and `scripts/` inside it. All scripts are at `$SIDECAR_SKILL/scripts/`.
 
-The user's `.env.local` lives in a writable state directory (default `$HOME/mnt/ClaudeCowork/.sidecar/.env.local`). Scripts auto-discover it via `_locate.sh`.
+The user's `.env.local` lives in a writable state directory under whichever folder is connected to Cowork (default: first user-mounted folder, falling back to `ClaudeCowork`). Scripts auto-discover it via `_locate.sh`.
 
 ---
 
 ## Step 0 — Always start here: is Sidecar configured?
 
 ```bash
-SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins/cache" "$HOME/mnt/.remote-plugins/cache" -type d -path '*/sidecar/skills/sidecar' 2>/dev/null | head -1)
+SIDECAR_SKILL=$(find "$HOME/mnt/.local-plugins" "$HOME/mnt/.remote-plugins" -type d -path '*/sidecar/skills/sidecar' 2>/dev/null | head -1)
 STATE=$(ls -d "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
 if [ -z "$SIDECAR_SKILL" ]; then echo "MODE=plugin-not-found"
 elif [ -z "$STATE" ] || [ ! -f "$STATE/.env.local" ]; then echo "MODE=needs-setup"
@@ -154,4 +154,6 @@ bash "$SIDECAR_SKILL/scripts/status.sh"
 - **Provider allowlists.** Some OpenRouter models need specific providers (`novita`, `azure`). 404 "No allowed providers" → flip those on at https://openrouter.ai/settings/preferences.
 - **Sandbox process lifetime.** Detached background processes die between bash calls — always do start/use/stop in a single bash invocation.
 - **Mac-mount permissions.** The connected folder allows file creation but blocks `rm`/`unlink`. Scripts use redirect-truncate (`>`) instead of `mv` — don't change that pattern.
+- **`/tmp` may not be writable.** In some Cowork sandboxes `/tmp` is owned by root and locked down. Scripts probe `[ -w "$HOME" ]` first and only fall through to `/tmp` if `$HOME` happens to be unwritable. Don't reorder those candidates.
+- **Folder name doesn't have to be `ClaudeCowork`.** `_locate.sh` picks the first user-mounted, writable folder for state if no existing `.sidecar/.env.local` is found. Override with `SIDECAR_STATE_DIR=...` if you want a specific location.
 - **Occasional crashes.** `anthropic-proxy` sometimes blows up on a partial JSON chunk from OpenRouter. Restart it. If it becomes a regular nuisance, pin the version in the vendored package.

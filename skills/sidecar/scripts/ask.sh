@@ -17,9 +17,15 @@ source "$SCRIPT_DIR/_locate.sh"
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
 PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
 
-# Pick a writable log path
-for cand in "${TMPDIR:-/tmp}/sidecar-ask.log" "$HOME/sidecar-ask.log" "./sidecar-ask.log"; do
-  if : > "$cand" 2>/dev/null; then LOG="$cand"; break; fi
+# Pick a writable directory for the proxy log. $HOME is reliably writable in
+# Cowork sandboxes; /tmp often isn't. Probe writability via [ -w ] so a
+# read-only dir never produces a "Permission denied" stderr leak.
+LOG=""
+for cand_dir in "$HOME" "${TMPDIR:-/tmp}" "."; do
+  if [ -d "$cand_dir" ] && [ -w "$cand_dir" ]; then
+    LOG="$cand_dir/sidecar-ask.log"
+    break
+  fi
 done
 LOG="${LOG:-$HOME/sidecar-ask.log}"
 
