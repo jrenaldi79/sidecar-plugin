@@ -108,6 +108,62 @@ note "second-call text: $TEXT2"
 [ -n "$TEXT2" ] && [ "$TEXT2" != "?" ] && pass "proxy answered a second request" || fail "second request failed (B1 regression?)"
 
 echo
+echo "=== two-turn tool-use round trip (catches C1 — tool_calls shape) ==="
+# Replays an Anthropic-shaped multi-turn conversation that includes an
+# assistant tool_use and a user tool_result. Strict providers (DeepSeek,
+# OpenAI/GPT) reject malformed tool_calls schemas — Gemini's adapter
+# accepts either form, which is why this slipped past earlier text-only tests.
+TOOL_RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
+  -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+  -d '{
+    "model": "x",
+    "max_tokens": 200,
+    "messages": [
+      {"role": "user", "content": "What is 2+2?"},
+      {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_test_c1", "name": "calc", "input": {"expr": "2+2"}}
+      ]},
+      {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_test_c1", "content": "4"}
+      ]}
+    ]
+  }')
+if echo "$TOOL_RESP" | grep -q '"error"'; then
+  fail "tool-use round trip rejected by upstream — ${TOOL_RESP:0:200}"
+else
+  pass "tool-use round trip accepted"
+fi
+
+echo
+echo "=== mixed user content (text + tool_result) round trip (catches C2 — ordering) ==="
+# Claude CLI sends tool_result + system-reminder text in a single user turn.
+# OpenAI requires the tool message to be adjacent to the prior assistant
+# tool_calls — interleaving user text breaks adjacency. This case must succeed
+# against strict providers, not just Gemini.
+MIXED_RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
+  -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+  -d '{
+    "model": "x",
+    "max_tokens": 200,
+    "messages": [
+      {"role": "user", "content": "What files are in /tmp?"},
+      {"role": "assistant", "content": [
+        {"type": "text", "text": "Let me check."},
+        {"type": "tool_use", "id": "toolu_test_c2", "name": "bash", "input": {"command": "ls /tmp"}}
+      ]},
+      {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_test_c2", "content": "file1.txt"},
+        {"type": "text", "text": "<system-reminder>respond concisely</system-reminder>"}
+      ]}
+    ]
+  }')
+if echo "$MIXED_RESP" | grep -q '"error"'; then
+  fail "mixed text+tool_result rejected — ${MIXED_RESP:0:200}"
+else
+  pass "mixed user content (text + tool_result) round trip accepted"
+fi
+
+echo
 echo "=== proxy still alive? ==="
 kill -0 "$PROXY_PID" 2>/dev/null && pass "proxy survived the test" || fail "proxy crashed"
 

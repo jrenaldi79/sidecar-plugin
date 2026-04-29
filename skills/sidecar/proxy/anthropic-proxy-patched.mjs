@@ -83,33 +83,75 @@ fastify.post('/v1/messages', async (request, reply) => {
       })
     }
     // Then add user (or other) messages.
+    //
+    // PATCH C1+C2 — Anthropic→OpenAI message translation correctness.
+    //
+    //   C1 (tool_calls shape): the original mapping wrapped each call in
+    //   { function: { type, id, function: { name, parameters } } }. The
+    //   correct OpenAI shape is { id, type:'function', function: { name,
+    //   arguments: <JSON-string> } } — id/type live at the top, single
+    //   `function` layer, and arguments must be a JSON-encoded *string*,
+    //   not the original object. Strict deserializers (DeepSeek, OpenAI
+    //   via Responses-API) rejected the malformed shape; Gemini's adapter
+    //   masked it by accepting either form.
+    //
+    //   C2 (message ordering): when a user message contains both text and
+    //   tool_result blocks (Claude CLI does this — system-reminders ride
+    //   along on the same turn that delivers tool results), tool_result
+    //   messages MUST be emitted before any user-text message so they're
+    //   adjacent to the prior assistant tool_calls. The OpenAI schema
+    //   requires this adjacency. The pre-patch code emitted user-text
+    //   first.
+    //
+    //   Secondary: tool_result.content can be a string OR an array of
+    //   content blocks. OpenAI requires a string — so we stringify.
     if (payload.messages && Array.isArray(payload.messages)) {
-      payload.messages.forEach(msg => {
-        const toolCalls = (Array.isArray(msg.content) ? msg.content : []).filter(item => item.type === 'tool_use').map(toolCall => ({
-          function: {
-            type: 'function',
-            id: toolCall.id,
-            function: {
-              name: toolCall.name,
-              parameters: toolCall.input,
-            },
-          }
-        }))
-        const newMsg = { role: msg.role }
-        const normalized = normalizeContent(msg.content)
-        if (normalized) newMsg.content = normalized
-        if (toolCalls.length > 0) newMsg.tool_calls = toolCalls
-        if (newMsg.content || newMsg.tool_calls) messages.push(newMsg)
+      const stringifyToolResult = (tr) => {
+        const c = tr.content
+        if (typeof c === 'string') return c
+        if (Array.isArray(c)) return c.map(b => (b && b.text) || '').join('')
+        return tr.text || ''
+      }
 
-        if (Array.isArray(msg.content)) {
-          const toolResults = msg.content.filter(item => item.type === 'tool_result')
-          toolResults.forEach(toolResult => {
+      payload.messages.forEach(msg => {
+        const items = Array.isArray(msg.content) ? msg.content : []
+        const toolUses = items.filter(it => it.type === 'tool_use')
+        const toolResults = items.filter(it => it.type === 'tool_result')
+        const textBlocks = items.filter(it => it.type === 'text')
+        const isUser = msg.role !== 'assistant'
+
+        if (isUser) {
+          // Tool results FIRST — they must be adjacent to the prior assistant tool_calls.
+          toolResults.forEach(tr => {
             messages.push({
               role: 'tool',
-              content: toolResult.text || toolResult.content,
-              tool_call_id: toolResult.tool_use_id,
+              content: stringifyToolResult(tr),
+              tool_call_id: tr.tool_use_id,
             })
           })
+          // Then any user text as a separate user message.
+          let userText = null
+          if (typeof msg.content === 'string') userText = msg.content
+          else if (textBlocks.length > 0) userText = textBlocks.map(b => b.text || '').join('')
+          if (userText) messages.push({ role: 'user', content: userText })
+        } else {
+          // Assistant: combine text + tool_calls into a single message.
+          const newMsg = { role: 'assistant' }
+          let txt = null
+          if (typeof msg.content === 'string') txt = msg.content
+          else if (textBlocks.length > 0) txt = textBlocks.map(b => b.text || '').join('')
+          if (txt) newMsg.content = txt
+          if (toolUses.length > 0) {
+            newMsg.tool_calls = toolUses.map(tu => ({
+              id: tu.id,
+              type: 'function',
+              function: {
+                name: tu.name,
+                arguments: JSON.stringify(tu.input || {}),
+              },
+            }))
+          }
+          if (newMsg.content || newMsg.tool_calls) messages.push(newMsg)
         }
       })
     }
