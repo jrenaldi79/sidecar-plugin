@@ -85,9 +85,15 @@ if [ -f "$ENV_FILE" ]; then
   ok ".env.local exists at $ENV_FILE (leaving untouched)"
 else
   if [ -f "$TEMPLATE" ]; then
-    cp "$TEMPLATE" "$ENV_FILE"
-    ok "Created $ENV_FILE from template"
-    warn "Edit $ENV_FILE and set OPENROUTER_API_KEY before starting."
+    # Use bash redirect (NOT cp) so the file's NTFS ACLs are owned by the
+    # user's token. virtiofs/OneDrive-backed mounts (Windows hosts) refuse
+    # later edits to files created via cp because the virtiofs driver
+    # owns the ACL. Redirect-truncate avoids that.
+    cat "$TEMPLATE" > "$ENV_FILE"
+    ok "Created $ENV_FILE from template (via bash redirect)"
+    warn "Set OPENROUTER_API_KEY by running:"
+    warn "  bash $SCRIPT_DIR/set-key.sh <your-sk-or-...-key>"
+    warn "  (or echo <key> | bash $SCRIPT_DIR/set-key.sh)"
   else
     err "template missing at $TEMPLATE — plugin may be corrupt"
     exit 1

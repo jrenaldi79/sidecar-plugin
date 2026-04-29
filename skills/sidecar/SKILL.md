@@ -46,14 +46,27 @@ else echo "MODE=ready"; fi
 
    Without this step, every Sidecar request will fail with DNS errors regardless of the API key.
 
-3. **Prompt for the OpenRouter key.** If `.env.local` still has `REPLACE_WITH_YOUR_OPENROUTER_KEY`, ask the user for their key (https://openrouter.ai/keys), then Edit the `.env.local` file. **Never** log or echo the key.
+3. **Collect the API key + default model via an interactive form.** Do **NOT** ask in plain prose — Cowork has a visualize tool that gives the user a real form. Steps:
 
-4. **Pick a default model** if the user has a preference:
-   ```bash
-   bash <SKILL_DIR>/scripts/list-models.sh gemini       # filter by vendor
-   bash <SKILL_DIR>/scripts/set-model.sh <exact-slug>   # validates against catalog
-   ```
-   If no preference, leave the template default (`google/gemini-3-flash-preview`).
+   1. Call `mcp__visualize__read_me` with `modules: ["elicitation"]` to load the form-styling guide.
+   2. Call `mcp__visualize__show_widget` with an elicitation form that has:
+      - A `<textarea>` (monospace, `data-name="api_key"`) for the OpenRouter API key (pointing the user at https://openrouter.ai/keys).
+      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with one card per recommended model. Each card's `data-value` MUST be the exact OpenRouter slug.
+
+   **Recommended model cards (validate at runtime — see Step 4 about staying current):**
+
+   | Card label | One-line description | `data-value` slug |
+   |---|---|---|
+   | Gemini 3.1 Pro | Google's latest reasoning preview — strong on long context | `google/gemini-3.1-pro-preview` |
+   | GPT-5.5 | OpenAI's current default — balanced speed and quality | `openai/gpt-5.5` |
+   | DeepSeek V4 Flash | Cheap, fast, solid on code & reasoning | `deepseek/deepseek-v4-flash` |
+   | Claude Sonnet 4.6 | Anthropic's mid-tier — closest to the parent Claude | `anthropic/claude-sonnet-4.6` |
+
+   3. Parse the submitted form. Then:
+      - Write the key via `bash <SKILL_DIR>/scripts/set-key.sh` (pipe the key through stdin: `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh`). **Never** use the Edit/Write tools on `.env.local` — virtiofs/OneDrive backed mounts (Windows hosts) silently drop those edits. Always inject via bash redirect.
+      - Set the model with `bash <SKILL_DIR>/scripts/set-model.sh <slug>` (validates against the live catalog).
+
+4. **Stay current — verify the slug exists before showing it.** OpenRouter's catalog turns over; the table above is a *recommendation snapshot*, not authoritative. Before presenting the elicitation form, run `bash <SKILL_DIR>/scripts/list-models.sh` and confirm each slug above still appears. If a vendor's recommended slug 404s, fall back to the latest match from the catalog (e.g. `bash <SKILL_DIR>/scripts/list-models.sh gemini`) and update that card's `data-value` before showing the form. A web search for "OpenRouter <vendor> latest model" can confirm the leading slug if needed.
 
 5. **Verify.**
    ```bash
@@ -67,12 +80,14 @@ else echo "MODE=ready"; fi
 
 ### 1. Resolve the vendor → model
 
-| User says | Default slug |
+This table is a *recommendation snapshot* (current as of April 2026). OpenRouter's catalog turns over; if a slug 404s, fall back to the most recent matching slug from `list-models.sh`. A quick web search for "OpenRouter <vendor> latest model" can confirm.
+
+| User says | Default slug (Apr 2026) |
 |---|---|
-| Gemini, Google | `google/gemini-3-flash-preview` |
+| Gemini, Google | `google/gemini-3.1-pro-preview` |
 | Claude, Anthropic, Sonnet | `anthropic/claude-sonnet-4.6` |
-| GPT, ChatGPT, OpenAI, GPT-4 | `openai/gpt-4o-mini` |
-| DeepSeek | `deepseek/deepseek-v3.2` |
+| GPT, ChatGPT, OpenAI, GPT-5 | `openai/gpt-5.5` |
+| DeepSeek | `deepseek/deepseek-v4-flash` |
 | Llama, Meta | `meta-llama/llama-3.3-70b-instruct` |
 
 If the user names a *specific* model ("ask Claude Opus 4.6"), search the catalog:
@@ -152,6 +167,12 @@ bash <SKILL_DIR>/scripts/status.sh
 - **Provider allowlists.** Some OpenRouter models need specific providers (`novita`, `azure`). 404 "No allowed providers" → flip those on at https://openrouter.ai/settings/preferences.
 - **Sandbox process lifetime.** Detached background processes die between bash calls — always do start/use/stop in a single bash invocation.
 - **Mac-mount permissions.** The connected folder allows file creation but blocks `rm`/`unlink`. Scripts use redirect-truncate (`>`) instead of `mv` — don't change that pattern.
+- **Windows-host virtiofs/OneDrive constraints.** When the connected folder is OneDrive-synced on a Windows host, every state-file write must go through bash:
+  - `cp` produces files with NTFS ACLs the user-token Edit/Write tools can't modify (EPERM).
+  - `sed -i` triggers OneDrive's delete-and-recreate sync, which then deletes the new file.
+  - Windows-side writes to a file aren't visible to bash until the inode is touched from the Linux side (virtiofs page cache staleness).
+  
+  **Rule of thumb:** never use Edit/Write tools on anything inside `.sidecar/` — always use the provided scripts (`set-key.sh`, `set-model.sh`) which write via bash redirect.
 - **`/tmp` may not be writable.** In some Cowork sandboxes `/tmp` is owned by root and locked down. Scripts probe `[ -w "$HOME" ]` first and only fall through to `/tmp` if `$HOME` happens to be unwritable. Don't reorder those candidates.
 - **Folder name doesn't have to be `ClaudeCowork`.** `_locate.sh` picks the first user-mounted, writable folder for state if no existing `.sidecar/.env.local` is found. Override with `SIDECAR_STATE_DIR=...` if you want a specific location.
 - **Outbound network goes through HTTP_PROXY/HTTPS_PROXY** when set. The proxy bundle's `wrapper.mjs` installs a global undici dispatcher so Node `fetch()` honors those env vars. No-op when the env vars are unset.
