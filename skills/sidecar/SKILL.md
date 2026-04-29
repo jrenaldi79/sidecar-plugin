@@ -46,27 +46,29 @@ else echo "MODE=ready"; fi
 
    Without this step, every Sidecar request will fail with DNS errors regardless of the API key.
 
-3. **Collect the API key + default model via an interactive form.** Do **NOT** ask in plain prose — Cowork has a visualize tool that gives the user a real form. Steps:
+3. **Collect the API key + default model via an interactive form. Use the EXACT cards specified below — do not improvise.**
+
+   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, Claude 3.5 Sonnet, Claude 3 Opus, or any other model not in the table below. Use the four slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
+
+   **Steps:**
 
    1. Call `mcp__visualize__read_me` with `modules: ["elicitation"]` to load the form-styling guide.
    2. Call `mcp__visualize__show_widget` with an elicitation form that has:
       - A `<textarea>` (monospace, `data-name="api_key"`) for the OpenRouter API key (pointing the user at https://openrouter.ai/keys).
-      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with one card per recommended model. Each card's `data-value` MUST be the exact OpenRouter slug.
+      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with **EXACTLY THESE FOUR CARDS, IN ORDER, AND NO OTHERS**:
 
-   **Recommended model cards (validate at runtime — see Step 4 about staying current):**
-
-   | Card label | One-line description | `data-value` slug |
-   |---|---|---|
-   | Gemini 3.1 Pro | Google's latest reasoning preview — strong on long context | `google/gemini-3.1-pro-preview` |
-   | GPT-5.5 | OpenAI's current default — balanced speed and quality | `openai/gpt-5.5` |
-   | DeepSeek V4 Flash | Cheap, fast, solid on code & reasoning | `deepseek/deepseek-v4-flash` |
-   | Claude Sonnet 4.6 | Anthropic's mid-tier — closest to the parent Claude | `anthropic/claude-sonnet-4.6` |
+        | Card label | One-line description | `data-value` slug (use verbatim) |
+        |---|---|---|
+        | Gemini 3.1 Pro | Google's latest reasoning preview — strong on long context | `google/gemini-3.1-pro-preview` |
+        | GPT-5.5 | OpenAI's current default — balanced speed and quality | `openai/gpt-5.5` |
+        | DeepSeek V4 Flash | Cheap, fast, solid on code & reasoning | `deepseek/deepseek-v4-flash` |
+        | Claude Sonnet 4.6 | Anthropic's mid-tier — closest to the parent Claude | `anthropic/claude-sonnet-4.6` |
 
    3. Parse the submitted form. Then:
       - Write the key via `bash <SKILL_DIR>/scripts/set-key.sh` (pipe the key through stdin: `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh`). **Never** use the Edit/Write tools on `.env.local` — virtiofs/OneDrive backed mounts (Windows hosts) silently drop those edits. Always inject via bash redirect.
       - Set the model with `bash <SKILL_DIR>/scripts/set-model.sh <slug>` (validates against the live catalog).
 
-4. **Stay current — verify the slug exists before showing it.** OpenRouter's catalog turns over; the table above is a *recommendation snapshot*, not authoritative. Before presenting the elicitation form, run `bash <SKILL_DIR>/scripts/list-models.sh` and confirm each slug above still appears. If a vendor's recommended slug 404s, fall back to the latest match from the catalog (e.g. `bash <SKILL_DIR>/scripts/list-models.sh gemini`) and update that card's `data-value` before showing the form. A web search for "OpenRouter <vendor> latest model" can confirm the leading slug if needed.
+4. **Only fall back from the four slugs above if `set-model.sh` actually rejects them as 404.** Don't pre-emptively "verify" against your own model knowledge — those four slugs are validated and current. The check that matters is `set-model.sh` calling OpenRouter's catalog. If (and only if) it returns "Unknown slug", run `bash <SKILL_DIR>/scripts/list-models.sh <vendor>` and pick the most recent match — and tell the user which slug you substituted and why.
 
 5. **Verify.**
    ```bash
