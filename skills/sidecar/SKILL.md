@@ -123,6 +123,22 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
 
 ## Use — handling an "ask <vendor> to ..." request
 
+### 🚫 Do NOT curl the proxy directly to answer a prompt
+
+The proxy is the **transport**, not the **agent**. It only translates Anthropic ↔ OpenAI format and forwards to OpenRouter. A direct `curl http://127.0.0.1:3000/v1/messages -d {...}` returns a single shot of model output with **no Read, no Grep, no Bash, no transcript access, no tool-use loop** — none of the things that make a Claude CLI subagent actually useful.
+
+**Always go through `ask.sh`.** It spawns a fresh `claude -p` subprocess (sub-Claude) with `--add-dir` pointing at the parent transcript and `--append-system-prompt` instructing sub-Claude how to use it. Sub-Claude then reasons, calls tools, grep-walks the transcript on demand, and returns a real answer. Skipping that and curling the proxy is functionally `curl openrouter.ai` with extra steps — you've defeated the entire purpose of the harness.
+
+| Operation | Right tool |
+|---|---|
+| Answering a user's "ask <vendor> to ..." prompt | `ask.sh` (always — spawns sub-Claude) |
+| Switching default model | `set-model.sh` |
+| Health check / debugging the proxy | curl is fine here (test.sh does this) |
+| Listing the catalog | `list-models.sh` |
+| Verifying setup | `test.sh` |
+
+If you find yourself reaching for `curl http://127.0.0.1:3000/v1/messages` to satisfy a user-facing request, stop — use `ask.sh` instead.
+
 ### 1. Resolve the vendor → model
 
 This table is a *recommendation snapshot* (current as of April 2026). OpenRouter's catalog turns over; if a slug 404s, fall back to the most recent matching slug from `list-models.sh`. A quick web search for "OpenRouter <vendor> latest model" can confirm.
@@ -206,6 +222,7 @@ bash <SKILL_DIR>/scripts/status.sh
 
 ## Important behavior notes
 
+- **Proxy is transport, not agent.** Curling `/v1/messages` directly returns one model shot with no tool use, no transcript context, no reasoning loop. To answer a user prompt, always use `ask.sh` (which spawns sub-Claude). Curl is acceptable only for diagnostics or `test.sh`-style probes.
 - **Plugin is read-only.** State (.env.local) lives in the user's connected folder under `sidecar-state/` (or legacy `.sidecar/`), not inside the plugin. The plugin install caches a vendored proxy; it doesn't mutate at runtime.
 - **Model identity is unreliable.** Models often hallucinate Claude/GPT regardless of what's actually configured. Authoritative source: the `model` field on a curl probe of `http://127.0.0.1:3000/v1/messages`, or the proxy log.
 - **CLI's `--model` is cosmetic** when going through Sidecar — the proxy substitutes upstream using `COMPLETION_MODEL` / `REASONING_MODEL` from `.env.local`.
