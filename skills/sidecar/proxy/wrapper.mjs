@@ -39,11 +39,14 @@ if (proxyUrl) {
   }
 }
 
-// Now load anthropic-proxy. Dynamic import ensures the dispatcher is set
-// before anthropic-proxy's top-level code runs (which starts the Fastify
-// server and registers fetch handlers).
-import('anthropic-proxy/index.js').catch((err) => {
+// Now load our vendored, patched anthropic-proxy. Dynamic import ensures the
+// dispatcher is set before the proxy's top-level code runs (which starts the
+// Fastify server and registers fetch handlers). We import a local patched
+// copy rather than the npm package because anthropic-proxy v1.3 has four
+// streaming-stability bugs (B1-B4) that crash the proxy when used with
+// Gemini's OpenAI-compat streaming. See proxy/anthropic-proxy-patched.mjs.
+import('./anthropic-proxy-patched.mjs').catch((err) => {
   // eslint-disable-next-line no-console
-  console.error('[sidecar] failed to load anthropic-proxy:', err);
+  console.error('[sidecar] failed to load anthropic-proxy-patched:', err);
   process.exit(1);
 });

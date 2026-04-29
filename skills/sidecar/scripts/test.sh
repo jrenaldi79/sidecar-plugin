@@ -91,6 +91,15 @@ note "CLI output: $CLI_OUT"
 echo "$CLI_OUT" | grep -qi pong && pass "claude CLI produced expected output" || fail "claude CLI output missing 'pong'"
 
 echo
+echo "=== second request after first (catches Bug B1 — proxy must survive) ==="
+RESP2=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
+  -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+  -d '{"model":"x","max_tokens":10,"messages":[{"role":"user","content":"reply with one word"}]}')
+TEXT2=$(echo "$RESP2" | python3 -c "import json,sys; print(json.load(sys.stdin).get('content',[{}])[0].get('text','?'))" 2>/dev/null || echo "?")
+note "second-call text: $TEXT2"
+[ -n "$TEXT2" ] && [ "$TEXT2" != "?" ] && pass "proxy answered a second request" || fail "second request failed (B1 regression?)"
+
+echo
 echo "=== proxy still alive? ==="
 kill -0 "$PROXY_PID" 2>/dev/null && pass "proxy survived the test" || fail "proxy crashed"
 

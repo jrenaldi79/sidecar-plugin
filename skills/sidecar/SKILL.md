@@ -18,7 +18,7 @@ The user's `.env.local` lives in a writable state directory under whichever fold
 ## Step 0 — Always start here: is Sidecar configured?
 
 ```bash
-STATE=$(ls -d "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
+STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
 if [ -z "$STATE" ] || [ ! -f "$STATE/.env.local" ]; then echo "MODE=needs-setup"
 elif ! grep -q '^OPENROUTER_API_KEY="sk-or-' "$STATE/.env.local" 2>/dev/null; then echo "MODE=needs-key"
 else echo "MODE=ready"; fi
@@ -38,7 +38,7 @@ else echo "MODE=ready"; fi
    ```bash
    bash <SKILL_DIR>/scripts/setup.sh
    ```
-   Idempotent. Verifies prereqs, ensures the vendored proxy bundle is intact, creates `<connected-folder>/.sidecar/` if missing, seeds `.env.local` from template, and probes outbound connectivity to `openrouter.ai`.
+   Idempotent. Verifies prereqs, ensures the vendored proxy bundle is intact, creates `<connected-folder>/sidecar-state/` if missing, seeds `.env.local` from template, runs a writability probe on the state dir, and probes outbound connectivity to `openrouter.ai`.
 
 2. **Confirm the openrouter.ai allow-list.** Cowork sandboxes restrict outbound traffic to allow-listed domains. If `setup.sh` reported `openrouter.ai NOT reachable`, tell the user to:
 
@@ -100,7 +100,7 @@ bash <SKILL_DIR>/scripts/list-models.sh claude opus
 ### 2. Switch the proxy's model only if needed
 
 ```bash
-STATE=$(ls -d "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
+STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
 set -a; source "$STATE/.env.local"; set +a
 DESIRED="<resolved-slug>"
 if [ "$COMPLETION_MODEL" != "$DESIRED" ]; then
@@ -163,7 +163,7 @@ bash <SKILL_DIR>/scripts/status.sh
 
 ## Important behavior notes
 
-- **Plugin is read-only.** State (.env.local) lives in the user's connected folder under `.sidecar/`, not inside the plugin. The plugin install caches a vendored proxy; it doesn't mutate at runtime.
+- **Plugin is read-only.** State (.env.local) lives in the user's connected folder under `sidecar-state/` (or legacy `.sidecar/`), not inside the plugin. The plugin install caches a vendored proxy; it doesn't mutate at runtime.
 - **Model identity is unreliable.** Models often hallucinate Claude/GPT regardless of what's actually configured. Authoritative source: the `model` field on a curl probe of `http://127.0.0.1:3000/v1/messages`, or the proxy log.
 - **CLI's `--model` is cosmetic** when going through Sidecar — the proxy substitutes upstream using `COMPLETION_MODEL` / `REASONING_MODEL` from `.env.local`.
 - **Provider allowlists.** Some OpenRouter models need specific providers (`novita`, `azure`). 404 "No allowed providers" → flip those on at https://openrouter.ai/settings/preferences.
@@ -174,8 +174,8 @@ bash <SKILL_DIR>/scripts/status.sh
   - `sed -i` triggers OneDrive's delete-and-recreate sync, which then deletes the new file.
   - Windows-side writes to a file aren't visible to bash until the inode is touched from the Linux side (virtiofs page cache staleness).
   
-  **Rule of thumb:** never use Edit/Write tools on anything inside `.sidecar/` — always use the provided scripts (`set-key.sh`, `set-model.sh`) which write via bash redirect.
+  **Rule of thumb:** never use Edit/Write tools on anything inside `sidecar-state/` (or legacy `.sidecar/`) — always use the provided scripts (`set-key.sh`, `set-model.sh`) which write via bash redirect.
 - **`/tmp` may not be writable.** In some Cowork sandboxes `/tmp` is owned by root and locked down. Scripts probe `[ -w "$HOME" ]` first and only fall through to `/tmp` if `$HOME` happens to be unwritable. Don't reorder those candidates.
-- **Folder name doesn't have to be `ClaudeCowork`.** `_locate.sh` picks the first user-mounted, writable folder for state if no existing `.sidecar/.env.local` is found. Override with `SIDECAR_STATE_DIR=...` if you want a specific location.
+- **Folder name doesn't have to be `ClaudeCowork`.** `_locate.sh` picks the first user-mounted, writable folder and creates `sidecar-state/` inside it if no existing state dir is found. Override with `SIDECAR_STATE_DIR=...` if you want a specific location. The dir is named `sidecar-state` (no leading dot) because dotfile names break on Windows + virtiofs + OneDrive.
 - **Outbound network goes through HTTP_PROXY/HTTPS_PROXY** when set. The proxy bundle's `wrapper.mjs` installs a global undici dispatcher so Node `fetch()` honors those env vars. No-op when the env vars are unset.
 - **Occasional crashes.** `anthropic-proxy` sometimes blows up on a partial JSON chunk from OpenRouter. Restart it. If it becomes a regular nuisance, pin the version in the vendored package.

@@ -7,7 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
+# Honor SIDECAR_BUNDLE_OVERRIDE so a power user can point at a hot-patched
+# bundle without rebuilding the plugin (useful for debugging upstream bugs).
+PROXY_ENTRY="${SIDECAR_BUNDLE_OVERRIDE:-$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs}"
 
 if [ -f "$ENV_FILE" ]; then
   set -a
@@ -23,5 +25,5 @@ if [ ! -f "$PROXY_ENTRY" ]; then
   exit 1
 fi
 
-cd "$SIDECAR_PLUGIN_DIR/proxy"
-exec node bundle.cjs
+cd "$(dirname "$PROXY_ENTRY")"
+exec node "$(basename "$PROXY_ENTRY")"

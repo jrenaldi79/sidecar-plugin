@@ -61,7 +61,7 @@ if [ ! -d "$SIDECAR_STATE_DIR" ]; then
     if [ -n "$AVAILABLE" ]; then
       err "Available connected folders:"
       printf '%s\n' "$AVAILABLE" | sed 's|^|    |' >&2
-      err "Set SIDECAR_STATE_DIR=<one of those>/.sidecar and retry,"
+      err "Set SIDECAR_STATE_DIR=<one of those>/sidecar-state and retry,"
       err "or rerun setup.sh after connecting the folder you want to use."
     else
       err "No connected folders detected. Connect a folder to Cowork first."
@@ -76,6 +76,35 @@ if [ ! -d "$SIDECAR_STATE_DIR" ]; then
 else
   ok "state dir exists at $SIDECAR_STATE_DIR"
 fi
+
+# Writability probe — Windows/virtiofs/OneDrive can silently accept mkdir for
+# dotfile-prefixed names while refusing all subsequent writes inside. Probe
+# with a real write+read cycle so we fail loudly here rather than later.
+PROBE="$SIDECAR_STATE_DIR/.write-probe"
+if ! ( echo "ok" > "$PROBE" ) 2>/dev/null; then
+  err "cannot write to $SIDECAR_STATE_DIR (this happens with dotfile dirs"
+  err "on Windows + virtiofs + OneDrive — the directory looks like it exists"
+  err "from bash but actual writes fail silently)."
+  case "$(basename "$SIDECAR_STATE_DIR")" in
+    .*)
+      err "Workaround: rerun with a non-dotfile state dir, e.g."
+      err "  SIDECAR_STATE_DIR=$(dirname "$SIDECAR_STATE_DIR")/sidecar-state \\"
+      err "    bash $SCRIPT_DIR/setup.sh"
+      ;;
+    *)
+      err "Try a different mounted folder, or check virtiofs/OneDrive sync."
+      ;;
+  esac
+  exit 1
+fi
+if [ "$(cat "$PROBE" 2>/dev/null)" != "ok" ]; then
+  err "wrote $PROBE but readback didn't return 'ok' — virtiofs page cache or"
+  err "OneDrive sync issue. State dir is in an inconsistent state."
+  exit 1
+fi
+# Probe file is harmless to leave behind; many mounts block unlink.
+ok "state dir is writable from bash (probe round-tripped)"
+echo
 
 # Seed .env.local from template if missing
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"

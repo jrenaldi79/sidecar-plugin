@@ -5,18 +5,25 @@
 #   SIDECAR_PLUGIN_DIR — read-only plugin root (where SKILL.md, proxy/, scripts/ live)
 #   SIDECAR_STATE_DIR  — user-writable state dir holding .env.local
 #
-# State dir resolution order:
-#   1. $SIDECAR_STATE_DIR env var if set
-#   2. First $HOME/mnt/*/.sidecar/ that already contains .env.local (existing setup)
-#   3. First mounted folder that's writable and not a system path (first-run fallback)
-#   4. Hard default: $HOME/mnt/ClaudeCowork/.sidecar
+# State dir name conventions:
+#   - PRIMARY:   <connected-folder>/sidecar-state/   (default; works on Mac, Linux, Windows)
+#   - LEGACY:    <connected-folder>/.sidecar/        (recognized for back-compat; do NOT
+#                                                     create new ones — the leading dot
+#                                                     breaks Windows/NTFS/OneDrive virtiofs)
+#
+# Resolution order:
+#   1. $SIDECAR_STATE_DIR env var if set (explicit override always wins)
+#   2. First $HOME/mnt/*/sidecar-state/  containing .env.local  (preferred)
+#   3. First $HOME/mnt/*/.sidecar/       containing .env.local  (legacy)
+#   4. First user-mounted, writable folder + /sidecar-state/    (first-run fallback)
+#   5. Hard default: $HOME/mnt/ClaudeCowork/sidecar-state
 
 # Plugin root = parent of the directory this file is in (scripts/_locate.sh -> skill root)
 SIDECAR_PLUGIN_DIR="${SIDECAR_PLUGIN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
-# 2. Existing state dir
+# 2 + 3. Existing state dir (preferred name first, legacy second).
 if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
-  for cand in "$HOME"/mnt/*/.sidecar; do
+  for cand in "$HOME"/mnt/*/sidecar-state "$HOME"/mnt/*/.sidecar; do
     if [ -d "$cand" ] && [ -f "$cand/.env.local" ]; then
       SIDECAR_STATE_DIR="$cand"
       break
@@ -24,8 +31,8 @@ if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
   done
 fi
 
-# 3. First-run fallback: pick the first user-mounted, writable folder.
-#    Skip system paths (outputs, uploads) and dotfile directories (.claude, .local-plugins, etc.)
+# 4. First-run fallback: pick the first user-mounted, writable folder and use
+#    sidecar-state/ inside it. Skip system paths and dotfile directories.
 if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
   for cand in "$HOME"/mnt/*/; do
     [ -d "$cand" ] || continue
@@ -34,13 +41,13 @@ if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
       outputs|uploads|.*) continue ;;
     esac
     if [ -w "$cand" ]; then
-      SIDECAR_STATE_DIR="${cand%/}/.sidecar"
+      SIDECAR_STATE_DIR="${cand%/}/sidecar-state"
       break
     fi
   done
 fi
 
-# 4. Hard default — only used if literally nothing is mounted.
-: "${SIDECAR_STATE_DIR:=$HOME/mnt/ClaudeCowork/.sidecar}"
+# 5. Hard default — only used if literally nothing is mounted.
+: "${SIDECAR_STATE_DIR:=$HOME/mnt/ClaudeCowork/sidecar-state}"
 
 export SIDECAR_PLUGIN_DIR SIDECAR_STATE_DIR
