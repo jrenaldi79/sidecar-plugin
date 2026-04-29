@@ -197,6 +197,44 @@ For a multi-step prompt, you can either:
 
 ---
 
+## Troubleshooting timeouts and hangs
+
+**There are two timeout layers in play.** Knowing which one fired tells you what to fix.
+
+| Layer | Default | Where it lives | What to do if it fires |
+|---|---|---|---|
+| `ask.sh` `MAX_RUN_SECONDS` | 180s | inside the script | Bump it: `MAX_RUN_SECONDS=300 bash <SKILL_DIR>/scripts/ask.sh "..."` |
+| Cowork bash tool ceiling | 45s | the tool itself | **You can't extend this from inside the skill.** If you're invoking ask.sh from a Cowork bash tool and the call legitimately takes >45s, the bash tool kills the whole thing regardless of `MAX_RUN_SECONDS`. Workarounds: split the work into shorter prompts, or run ask.sh from a real terminal where the 45s cap doesn't apply. |
+| Upstream fetch (OpenRouter) | 120s | `proxy/anthropic-proxy-patched.mjs` | A hung Gemini/OpenAI request can't take longer than 120s before the proxy gives up. Logged in `$HOME/sidecar-ask.log`. |
+
+**Read the failure message ask.sh prints.** Exit codes are diagnostic:
+- `124` — hit `MAX_RUN_SECONDS`. Bump it.
+- `137` — SIGKILL, almost always the bash tool's 45s ceiling.
+- anything else — sub-Claude or upstream returned an error; check the proxy-log tail and stderr tail that ask.sh dumps automatically.
+
+**Get progress visibility during long calls.** Set `SIDECAR_VERBOSE=1` to mirror sub-Claude's stderr live as the call runs:
+
+```bash
+SIDECAR_VERBOSE=1 MAX_RUN_SECONDS=300 bash <SKILL_DIR>/scripts/ask.sh "<long prompt>"
+```
+
+You'll see tool-use events, transcript-grep activity, and any upstream errors as they happen rather than only at the end. Note: the bash tool still buffers output to its caller until the command completes — `SIDECAR_VERBOSE` is most useful when running ask.sh from a terminal, or when redirecting to a tail-able file.
+
+**Common failure shapes and fixes:**
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Empty response, exit 0 | Reasoning model burned all `max_tokens` on internal CoT before any visible text | Bump max_tokens to ≥200 (default test floor); set a higher value in the prompt itself |
+| `EAI_AGAIN getaddrinfo` in proxy log | DNS / outbound network blocked | Add `openrouter.ai` to Cowork Settings ▸ Capabilities ▸ Allowed domains |
+| `No allowed providers` upstream error | OpenRouter account doesn't have the provider for that model | Enable provider at https://openrouter.ai/settings/preferences, or pick a different slug |
+| `is not a valid model ID` | Stale slug | Run `list-models.sh <vendor>` and use a current one |
+| Hangs forever, no output | Proxy crashed or upstream hung | The 120s upstream timeout will fire. Check `tail -20 $HOME/sidecar-ask.log` for the actual error |
+| Exit 137 (SIGKILL) | Cowork bash tool ceiling | Run from terminal, or chunk the work |
+
+**Don't mistake a slow call for a stuck one.** Reasoning + tool-use chains routinely take 60–120s. Wait for `MAX_RUN_SECONDS` before declaring it stuck.
+
+---
+
 ## Other workflows
 
 ### Switch default model ("switch sidecar to claude sonnet")

@@ -7,7 +7,16 @@
 #
 # Env overrides:
 #   PORT            — defaults to .env.local value or 3000
-#   MAX_RUN_SECONDS — hard timeout on claude -p (default 60)
+#   MAX_RUN_SECONDS — hard timeout on claude -p (default 180; bump for
+#                     long reasoning + tool-use chains)
+#   SIDECAR_VERBOSE — '1' to mirror sub-Claude stderr live for progress
+#                     visibility (otherwise silent until completion)
+#
+# IMPORTANT: when invoked from inside a Cowork bash tool, that tool has
+# its own 45s ceiling. ask.sh's MAX_RUN_SECONDS can be larger but the
+# bash tool will kill the whole bash invocation at 45s regardless. For
+# long-running calls, run ask.sh from a real terminal or break the work
+# into smaller prompts.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -51,7 +60,10 @@ if [ ! -f "$PROXY_ENTRY" ]; then
 fi
 
 PORT="${PORT:-3000}"
-MAX_RUN_SECONDS="${MAX_RUN_SECONDS:-60}"
+# Default raised from 60→180. Reasoning models + tool-use chains routinely
+# exceed 60s. The hard wall-clock is OK to bump; the proxy itself has its
+# own 120s upstream-fetch timeout (see anthropic-proxy-patched.mjs P2).
+MAX_RUN_SECONDS="${MAX_RUN_SECONDS:-180}"
 
 # Best-effort transcript discovery
 TRANSCRIPT="$(bash "$SCRIPT_DIR/find-transcript.sh" 2>/dev/null || true)"
@@ -79,18 +91,66 @@ if [ -n "$TRANSCRIPT" ] && [ -n "$TRANSCRIPT_DIR" ]; then
   CLAUDE_ARGS+=( --append-system-prompt "$SYS_HINT" )
 fi
 
-printf '%s' "$PROMPT" | \
-  ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
-  ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  ANTHROPIC_AUTH_TOKEN="" \
-  timeout "$MAX_RUN_SECONDS" claude "${CLAUDE_ARGS[@]}"
-RC=$?
+# Sub-Claude stderr goes to a separate file so we can show it on failure
+# without contaminating the success-path stdout that callers consume.
+SUB_ERR=""
+for cand_dir in "$HOME" "${TMPDIR:-/tmp}" "."; do
+  if [ -d "$cand_dir" ] && [ -w "$cand_dir" ]; then
+    SUB_ERR="$cand_dir/sidecar-ask.err"; break
+  fi
+done
+SUB_ERR="${SUB_ERR:-$HOME/sidecar-ask.err}"
+: > "$SUB_ERR" 2>/dev/null
+
+if [ "${SIDECAR_VERBOSE:-0}" = "1" ]; then
+  # Mirror stderr live AND save it. tee runs in the foreground but the
+  # underlying claude pipeline still drives the whole call.
+  printf '%s' "$PROMPT" | \
+    ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+    ANTHROPIC_AUTH_TOKEN="" \
+    timeout --foreground "$MAX_RUN_SECONDS" claude "${CLAUDE_ARGS[@]}" 2> >(tee "$SUB_ERR" >&2)
+  RC=$?
+else
+  printf '%s' "$PROMPT" | \
+    ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+    ANTHROPIC_AUTH_TOKEN="" \
+    timeout --foreground "$MAX_RUN_SECONDS" claude "${CLAUDE_ARGS[@]}" 2> "$SUB_ERR"
+  RC=$?
+fi
 
 kill "$PROXY_PID" 2>/dev/null
 
 if [ "$RC" -ne 0 ]; then
   echo "" >&2
-  echo "ask.sh: sub-Claude exited $RC. Proxy log tail:" >&2
-  tail -5 "$LOG" >&2
+  case "$RC" in
+    124)
+      echo "ask.sh: sub-Claude hit MAX_RUN_SECONDS=${MAX_RUN_SECONDS}s timeout." >&2
+      echo "       To extend: MAX_RUN_SECONDS=300 bash ask.sh \"<prompt>\"" >&2
+      echo "       (If invoked from a Cowork bash tool, that tool's own 45s ceiling" >&2
+      echo "        applies regardless — run from a terminal or split the work.)" >&2
+      ;;
+    137)
+      echo "ask.sh: sub-Claude was killed (SIGKILL) — likely the bash tool's own ceiling." >&2
+      ;;
+    *)
+      echo "ask.sh: sub-Claude exited $RC." >&2
+      ;;
+  esac
+  echo "" >&2
+  echo "Proxy log tail (looking for upstream errors / hangs):" >&2
+  tail -10 "$LOG" >&2
+  if [ -s "$SUB_ERR" ]; then
+    echo "" >&2
+    echo "Sub-Claude stderr tail:" >&2
+    tail -10 "$SUB_ERR" >&2
+  fi
+  echo "" >&2
+  echo "Common fixes:" >&2
+  echo "  • Long reasoning chain → MAX_RUN_SECONDS=300 …" >&2
+  echo "  • Empty/null upstream    → check OPENROUTER_API_KEY + allow-list (Settings ▸ Capabilities)" >&2
+  echo "  • Unknown model          → bash <SKILL>/scripts/list-models.sh <vendor>" >&2
+  echo "  • Hung mid-call          → SIDECAR_VERBOSE=1 bash ask.sh \"…\" to see live progress" >&2
 fi
 exit "$RC"
