@@ -68,10 +68,16 @@ fi
 
 echo
 echo "=== curl probe ==="
+# max_tokens=200, not 20: reasoning models (Gemini 3.1 Pro Preview, GPT-5.5, etc.)
+# burn 80-90 tokens of internal chain-of-thought BEFORE emitting any visible
+# text. With a budget below ~100, the model hits max_tokens during reasoning
+# and returns content:null with stop_reason:max_tokens. The proxy's PATCH B3
+# correctly produces content:[] in that case — but the test then misreads the
+# empty content as a proxy bug. 200 gives a safe margin for any current model.
 RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  -d '{"model":"client-sent-anything","max_tokens":20,"messages":[{"role":"user","content":"say ok"}]}')
+  -d '{"model":"client-sent-anything","max_tokens":200,"messages":[{"role":"user","content":"say ok"}]}')
 UPSTREAM=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('model','?'))" 2>/dev/null || echo "?")
 TEXT=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('content',[{}])[0].get('text','?'))" 2>/dev/null || echo "?")
 note "upstream model: $UPSTREAM"
@@ -92,9 +98,11 @@ echo "$CLI_OUT" | grep -qi pong && pass "claude CLI produced expected output" ||
 
 echo
 echo "=== second request after first (catches Bug B1 — proxy must survive) ==="
+# max_tokens=200 same reasoning as the first probe — reasoning models need
+# headroom past their internal chain-of-thought before visible content lands.
 RESP2=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
-  -d '{"model":"x","max_tokens":10,"messages":[{"role":"user","content":"reply with one word"}]}')
+  -d '{"model":"x","max_tokens":200,"messages":[{"role":"user","content":"reply with one word"}]}')
 TEXT2=$(echo "$RESP2" | python3 -c "import json,sys; print(json.load(sys.stdin).get('content',[{}])[0].get('text','?'))" 2>/dev/null || echo "?")
 note "second-call text: $TEXT2"
 [ -n "$TEXT2" ] && [ "$TEXT2" != "?" ] && pass "proxy answered a second request" || fail "second request failed (B1 regression?)"
