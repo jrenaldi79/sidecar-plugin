@@ -11,6 +11,20 @@ Sidecar serves two purposes: (a) one-time setup of the local proxy, and (b) on-d
 
 When a skill is loaded, the skill-loading system gives you the absolute path to this skill's base directory. **Use that path for all script invocations** — don't try to rediscover it via `find`. Throughout this document, `<SKILL_DIR>` is shorthand for that base directory; substitute it with the actual path when running commands. Scripts live at `<SKILL_DIR>/scripts/`, the vendored proxy bundle is at `<SKILL_DIR>/proxy/bundle.cjs`.
 
+### Path translation in Cowork (read this before your first script call)
+
+Cowork on **Windows** hands you a Windows path like `C:\Users\<user>\rpm\plugin_<ID>\skills\sidecar`. Bash runs in a Linux sandbox where the same plugin lives at `/sessions/<session>/mnt/.remote-plugins/plugin_<ID>/skills/sidecar/`. The `plugin_<ID>` segment is identical between the two — only the prefix changes. Translate the Windows path to the bash form once, before your first invocation, otherwise the first `setup.sh` call will fail with `No such file or directory`.
+
+On Mac/Linux Cowork hosts the path is already in Linux form and no translation is needed.
+
+### Tools you'll need (load up front, in one ToolSearch call)
+
+Setup uses these deferred tools. Load them all in a single `ToolSearch` round-trip — not one at a time — to avoid stalls mid-flow:
+
+- `mcp__workspace__bash` — every script invocation
+- `mcp__visualize__read_me` + `mcp__visualize__show_widget` — the elicitation form for API-key + model
+- `TaskCreate` / `TaskUpdate` — only if you plan to track progress (see Task tracking note below)
+
 The user's `.env.local` lives in a writable state directory under whichever folder is connected to Cowork (default: first user-mounted folder, falling back to `ClaudeCowork`). Scripts auto-discover it via `_locate.sh`.
 
 ---
@@ -33,6 +47,35 @@ else echo "MODE=ready"; fi
 ---
 
 ## Setup ("install sidecar", "set up sidecar")
+
+### Happy path (scan this first)
+
+The full happy path. Numbers tie to the detailed steps below — when in doubt, just run these in order:
+
+```bash
+# (1) Run setup: creates state dir + .env.local from template, probes connectivity
+bash <SKILL_DIR>/scripts/setup.sh
+
+# (2) If setup reported openrouter.ai NOT reachable, send the user to
+#     Cowork Settings ▸ Capabilities ▸ Allowed domains, then rerun (1).
+
+# (3) Render the elicitation form (mcp__visualize__show_widget). Collect:
+#     - api_key:        sk-or-...
+#     - default_model:  one of the four slugs in the cards table below
+
+# (4) Write the key (NEVER use Edit/Write on .env.local — see virtiofs note):
+echo "<api-key-from-form>" | bash <SKILL_DIR>/scripts/set-key.sh
+
+# (5) Set the model AND verify in one bash call (chain with &&):
+bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
+  bash <SKILL_DIR>/scripts/test.sh
+```
+
+**Batch where you can.** Any two scripts with a clear linear dependency belong in the same bash call — `set-model.sh && test.sh`, `setup.sh && cat <state>/.env.local`, etc. Each separate bash invocation is a tool round-trip; chains save them.
+
+**Task tracking on this short flow.** The setup happy path is six steps and pure linear scripting. If you're going to track with `TaskCreate`, create all six tasks at the start in one batch — don't add tracking mid-flow, you'll spend more calls on bookkeeping than on the work. For most setups, skipping task tracking entirely is fine.
+
+### Detailed steps
 
 1. **Run setup.**
    ```bash
