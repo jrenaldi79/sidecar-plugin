@@ -274,6 +274,15 @@ fastify.post('/v1/messages', async (request, reply) => {
 
       const anthropicResponse = {
         content: [
+          // PATCH C3 — mirror the streaming path's reasoning handling. When the
+          // upstream OpenAI-compat response includes a `reasoning` field
+          // (thinking models), surface it as a thinking block instead of
+          // silently dropping it. The streaming branch emits thinking_delta
+          // events for delta.reasoning; here we emit a single thinking block.
+          ...(openaiMessage.reasoning ? [{
+            type: 'thinking',
+            thinking: openaiMessage.reasoning
+          }] : []),
           // PATCH B3 — only emit a text block if content is non-null. Pure
           // tool-call turns from Gemini have content === null, which crashes
           // the Claude CLI when it tries to call .text.trim() on it.
