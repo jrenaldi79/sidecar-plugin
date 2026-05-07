@@ -7,7 +7,11 @@
 //   B1 — guard reply.code(500) with !reply.raw.headersSent
 //   B2 — try/catch around JSON.parse of SSE chunks (line ~323)
 //   B3 — handle null openaiMessage.content in non-streaming path (lines ~202, ~224)
-//   B4 — streaming opt-in via $SIDECAR_STREAMING (default off until B1-B3 prove robust)
+//   B4 — streaming default-on; honor client's payload.stream unless
+//        $SIDECAR_STREAMING=false explicitly opts out. Default flipped from
+//        opt-in→opt-out 2026-05-06 once B1-B3 proved robust. Opt-out is
+//        retained because thinking models (Gemini 3.x Pro) emit reasoning
+//        only on the streaming path; non-streaming truncates them.
 //   P1 — try/catch around JSON.parse of tool_call arguments (line ~209)
 //   P2 — AbortSignal.timeout(120000) on the upstream fetch
 //
@@ -206,11 +210,13 @@ fastify.post('/v1/messages', async (request, reply) => {
       messages,
       max_tokens: payload.max_tokens,
       temperature: payload.temperature !== undefined ? payload.temperature : 1,
-      // PATCH B4 — Streaming is opt-in. Defaults to false because Gemini's
-      // OpenAI-compat SSE format triggers parse errors that crash the stream
-      // path (see B1, B2 below). Set SIDECAR_STREAMING=true to re-enable
-      // streaming once those fixes are battle-tested.
-      stream: process.env.SIDECAR_STREAMING === 'true' ? payload.stream === true : false,
+      // PATCH B4 — Streaming follows the client's request by default. Set
+      // SIDECAR_STREAMING=false to force non-streaming (escape hatch for
+      // upstreams whose OpenAI-compat SSE format trips the stream parser).
+      // The non-streaming path silently drops Gemini's `reasoning` field,
+      // so for thinking models default-on is required to surface visible
+      // output at all when max_tokens is tight.
+      stream: process.env.SIDECAR_STREAMING === 'false' ? false : (payload.stream === true),
     }
     if (tools.length > 0) openaiPayload.tools = tools
     debug('OpenAI payload:', openaiPayload)

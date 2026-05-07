@@ -224,7 +224,7 @@ You'll see tool-use events, transcript-grep activity, and any upstream errors as
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Empty response, exit 0 | Reasoning model burned all `max_tokens` on internal CoT before any visible text | Bump max_tokens to ≥200 (default test floor); set a higher value in the prompt itself |
+| Empty / one-sentence response, exit 0 | Thinking model (Gemini 3.x Pro, GPT-5.5 reasoning) burned most of `max_tokens` on internal CoT before visible text. Made worse if `SIDECAR_STREAMING=false`, which drops the model's `reasoning` field entirely. | Two-part fix: (a) keep `SIDECAR_STREAMING=true` (default since 2026-05-06 — set explicitly in `.env.local` if you upgraded an old install); (b) bump max_tokens to ≥3000 for Gemini 3.x Pro, ≥1500 for other thinking models. The 200 floor in `test.sh` only confirms the proxy works at all; real prompts need much more headroom. |
 | `EAI_AGAIN getaddrinfo` in proxy log | DNS / outbound network blocked | Add `openrouter.ai` to Cowork Settings ▸ Capabilities ▸ Allowed domains |
 | `No allowed providers` upstream error | OpenRouter account doesn't have the provider for that model | Enable provider at https://openrouter.ai/settings/preferences, or pick a different slug |
 | `is not a valid model ID` | Stale slug | Run `list-models.sh <vendor>` and use a current one |
