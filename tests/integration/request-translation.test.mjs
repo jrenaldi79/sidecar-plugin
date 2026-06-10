@@ -101,6 +101,24 @@ test('tools map input_schema->parameters, filter BatchTool, strip format:uri rec
   assert.deepEqual(fn.function.parameters.properties.alt.anyOf[0], { type: 'string' })
 })
 
+test('format:uri stripped inside allOf, oneOf, and array items', async () => {
+  await postMessages(proxy.url, anthropicPayload({
+    tools: [
+      { name: 'deep', description: 'nested schemas', input_schema: {
+          type: 'object',
+          properties: {
+            a: { allOf: [{ type: 'string', format: 'uri' }] },
+            o: { oneOf: [{ type: 'string', format: 'uri' }, { type: 'number' }] },
+            list: { type: 'array', items: { type: 'string', format: 'uri' } },
+          } } },
+    ],
+  }))
+  const params = fake.lastRequest().body.tools[0].function.parameters
+  assert.deepEqual(params.properties.a.allOf[0], { type: 'string' })
+  assert.deepEqual(params.properties.o.oneOf[0], { type: 'string' })
+  assert.deepEqual(params.properties.list.items, { type: 'string' })
+})
+
 test('model routing: thinking->REASONING_MODEL, default->COMPLETION_MODEL, client model ignored', async () => {
   await postMessages(proxy.url, anthropicPayload({ model: 'claude-whatever' }))
   assert.equal(fake.lastRequest().body.model, 'fake/completion-model')
