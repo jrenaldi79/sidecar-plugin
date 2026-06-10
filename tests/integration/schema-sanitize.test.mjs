@@ -71,6 +71,47 @@ test('P4: required with no surviving entries is removed entirely', async () => {
   assert.equal('required' in params, false)
 })
 
+test('P5: enum on a non-string type is dropped (Gemini-incompatible)', async () => {
+  // Live finding (2026-06-09, Fireflies MCP tool): {type:'number', enum:[7,14,30]}
+  // makes Google's converter discard the whole surrounding properties map,
+  // which then 400s with "required[N]: property is not defined" for SIBLING
+  // properties. Bisected construct-by-construct against live Gemini Flash.
+  await postMessages(proxy.url, anthropicPayload({
+    tools: [{
+      name: 'share',
+      description: 'numeric enum trigger',
+      input_schema: {
+        type: 'object',
+        properties: {
+          meetingId: { type: 'string' },
+          expiryDays: { type: 'number', enum: [7, 14, 30], description: 'one of 7, 14, 30' },
+        },
+        required: ['meetingId'],
+      },
+    }],
+  }))
+  const params = fake.lastRequest().body.tools[0].function.parameters
+  assert.equal('enum' in params.properties.expiryDays, false)
+  assert.equal(params.properties.expiryDays.type, 'number')
+  assert.deepEqual(params.required, ['meetingId'])
+})
+
+test('P5: string enums are preserved', async () => {
+  await postMessages(proxy.url, anthropicPayload({
+    tools: [{
+      name: 'pick',
+      description: 'string enum is Gemini-supported',
+      input_schema: {
+        type: 'object',
+        properties: { mode: { type: 'string', enum: ['fast', 'slow'] } },
+        required: ['mode'],
+      },
+    }],
+  }))
+  const params = fake.lastRequest().body.tools[0].function.parameters
+  assert.deepEqual(params.properties.mode.enum, ['fast', 'slow'])
+})
+
 test('P4: valid required arrays pass through untouched', async () => {
   await postMessages(proxy.url, anthropicPayload({
     tools: [{

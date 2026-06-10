@@ -197,6 +197,16 @@ fastify.post('/v1/messages', async (request, reply) => {
         result[key] = removeUriFormat(schema[key]);
       }
       }
+      // PATCH P5 — Gemini supports `enum` only on STRING-typed schemas. A
+      // numeric enum (real example: Fireflies MCP `expiryDays: {type:
+      // 'number', enum: [7,14,30]}`) makes Google's converter discard the
+      // whole surrounding `properties` map, which then 400s with
+      // "required[N]: property is not defined" for SIBLING properties.
+      // Drop the enum — descriptions invariably restate the allowed values,
+      // and the tool's own server still validates actual arguments.
+      if (Array.isArray(result.enum) && result.type && result.type !== 'string') {
+        delete result.enum;
+      }
       // PATCH P4 — Google's GenerateContentRequest validator rejects schemas
       // whose `required` names properties that aren't defined ("property is
       // not defined", INVALID_ARGUMENT). OpenAI/DeepSeek tolerate the same
