@@ -56,6 +56,7 @@ echo "zipping..."
        '.claude/*' '.claude' \
        '*.DS_Store' '.DS_Store' \
        "$OUTNAME" 'build/*' 'dist/*' \
+       'scripts/*' 'scripts' 'CLAUDE.md' '.checks-passed' \
        'skills/sidecar/proxy/node_modules/*' \
        'skills/sidecar/proxy/node_modules' \
        '*/test/*' '*/tests/*' \
