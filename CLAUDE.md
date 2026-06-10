@@ -79,6 +79,7 @@ scripts/lib/generate-docs.sh                       # regenerate the AUTO:tree se
 scripts/lib/validate-docs.sh                       # CLAUDE.md drift detection (warn-only, never blocks).
 skills/sidecar/.env.local.template
 skills/sidecar/SKILL.md
+skills/sidecar/defaults.env.template
 skills/sidecar/proxy/anthropic-proxy-patched.mjs   # vendored fork of anthropic-proxy v1.3.x with
 skills/sidecar/proxy/bundle-min.cjs
 skills/sidecar/proxy/package.json
@@ -88,6 +89,7 @@ skills/sidecar/scripts/_runtime.sh                 # sourced helpers shared by a
 skills/sidecar/scripts/ask.sh                      # send one prompt to an OpenRouter model as a Claude CLI subagent.
 skills/sidecar/scripts/find-transcript.sh          # locate the parent Cowork session's JSONL transcript.
 skills/sidecar/scripts/list-models.sh              # fetch the live OpenRouter model catalog, optionally filtered.
+skills/sidecar/scripts/refresh-defaults.sh         # view or update the vendor → model alias map that
 skills/sidecar/scripts/set-key.sh                  # inject the OpenRouter API key into .env.local.
 skills/sidecar/scripts/set-model.sh                # change the model Sidecar forwards to.
 skills/sidecar/scripts/setup.sh                    # first-run configuration for Sidecar (plugin install).

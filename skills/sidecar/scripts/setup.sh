@@ -130,6 +130,21 @@ else
 fi
 echo
 
+# Seed defaults.env (vendor → model alias map for ask.sh --model <vendor>)
+DEFAULTS_FILE="$SIDECAR_STATE_DIR/defaults.env"
+DEFAULTS_TEMPLATE="$SIDECAR_PLUGIN_DIR/defaults.env.template"
+if [ -f "$DEFAULTS_FILE" ]; then
+  ok "defaults.env exists at $DEFAULTS_FILE (leaving untouched)"
+elif [ -f "$DEFAULTS_TEMPLATE" ]; then
+  # Same bash-redirect rationale as .env.local above (virtiofs/OneDrive ACLs).
+  cat "$DEFAULTS_TEMPLATE" > "$DEFAULTS_FILE"
+  ok "Created $DEFAULTS_FILE (vendor → model aliases for ask.sh --model)"
+else
+  warn "defaults.env template missing at $DEFAULTS_TEMPLATE — vendor words"
+  warn "won't resolve in ask.sh --model; full slugs still work."
+fi
+echo
+
 # Outbound-connectivity probe. Many Cowork sandboxes restrict network egress
 # to an allow-listed set of domains. If openrouter.ai isn't reachable now,
 # Sidecar can't talk to upstream models — surface this clearly here rather
@@ -163,4 +178,7 @@ Next steps:
        bash $SCRIPT_DIR/test.sh
   5. Send a prompt:
        bash $SCRIPT_DIR/ask.sh "your question here"
+       bash $SCRIPT_DIR/ask.sh --model gpt "same question, different model"
+  6. (Optional) When a vendor alias goes stale (catalog turnover):
+       bash $SCRIPT_DIR/refresh-defaults.sh gemini <new-slug>
 EOF
