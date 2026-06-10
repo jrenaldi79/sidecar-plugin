@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -14,15 +14,25 @@ const SCRIPTS = path.join(REPO, 'skills/sidecar/scripts')
 const FAKE_KEY = 'sk-or-' + 'v1-testkey1234'
 const KEEP_KEY = 'sk-or-' + 'v1-keepme9999'
 
+// Temp HOMEs created by makeEnv, removed in after() — tests must clean up
+// after themselves (.claude/rules/testing.md); the host machine isn't ephemeral.
+const tempHomes = []
+after(() => {
+  for (const h of tempHomes) fs.rmSync(h, { recursive: true, force: true })
+})
+
 // Build an isolated env: temp HOME with mnt/<folder>, stub bin on PATH.
 function makeEnv({ folders = ['MyFolder'], catalog = ['test/model-a', 'test/model-b'] } = {}) {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-test-')))
+  tempHomes.push(home)
   for (const f of folders) fs.mkdirSync(path.join(home, 'mnt', f), { recursive: true })
   const bin = path.join(home, 'bin')
   fs.mkdirSync(bin)
   fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\necho "claude-stub 0.0.0"\n', { mode: 0o755 })
   // curl stub: serves the model catalog for set-model.sh's validation call;
   // reports unreachable (000) for setup.sh's -w "%{http_code}" probe.
+  // Arm order matters: setup.sh's probe URL also contains 'models', so the
+  // http_code arm must come first or the probe would receive catalog JSON.
   const catalogJson = JSON.stringify({ data: catalog.map(id => ({ id })) })
   fs.writeFileSync(path.join(bin, 'curl'), `#!/bin/sh
 case "$*" in
