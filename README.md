@@ -6,7 +6,7 @@ Sidecar gives you a `claude -p "..."` invocation that quietly routes to whicheve
 
 ## Why this exists
 
-Claude Cowork is Claude end to end. There's no built-in way to hand a question to Gemini, GPT, or DeepSeek mid-session — no "second opinion" button, no multi-model fan-out. Sidecar adds that: fork a prompt to another model, fold the answer back into your main Claude context (the Fork & Fold pattern).
+Claude Cowork is Claude end to end. There's no built-in way to hand a question to Gemini, GPT, or DeepSeek mid-session — no "second opinion" button, no multi-model fan-out. Sidecar adds that: fork a prompt to another model (or several in parallel), fold the answers back into your main Claude context (the Fork & Fold pattern). Subagents can keep their own multi-turn sessions, run read-only by default, and report what each call cost.
 
 The design follows directly from how Cowork works under the hood:
 
@@ -29,6 +29,7 @@ sidecar-plugin/
 └── skills/sidecar/
     ├── SKILL.md               # skill definition (loaded by Cowork as `sidecar`)
     ├── .env.local.template    # template for per-user config
+    ├── defaults.env.template  # vendor → model alias map (seeded into state dir)
     ├── proxy/
     │   ├── bundle.cjs         # vendored anthropic-proxy + deps (esbuild, single file)
     │   ├── wrapper.mjs        # entry point; honors HTTP(S)_PROXY in sandboxes
@@ -39,11 +40,14 @@ sidecar-plugin/
         ├── set-key.sh         # store your OpenRouter API key
         ├── start.sh / stop.sh / status.sh
         ├── test.sh            # full end-to-end verification
-        ├── ask.sh             # one-shot prompt through the proxy
-        ├── list-models.sh     # query the live OpenRouter catalog
-        ├── set-model.sh       # change model + restart proxy
+        ├── ask.sh             # run a prompt as a subagent (--model/--continue/--fold/...)
+        ├── compare.sh         # fork one prompt to N models in parallel
+        ├── list-models.sh     # query the live OpenRouter catalog (with $/M pricing)
+        ├── set-model.sh       # change the persistent default model
+        ├── refresh-defaults.sh# view/update the vendor → model alias map
         ├── find-transcript.sh # locate parent-conversation transcript for context self-pull
-        └── _locate.sh         # state-dir discovery helper
+        ├── _locate.sh         # state-dir discovery helper
+        └── _runtime.sh        # shared helpers (port probing, proxy boot, alias resolution)
 ```
 
 `node_modules/` exists only at build time and is gitignored — `build.sh` regenerates it from the lockfile and bundles it into `bundle.cjs`.
@@ -82,20 +86,33 @@ In a Cowork chat:
 
 > ask Gemini to review this plan
 > what does ChatGPT think about this tradeoff?
+> compare Gemini and GPT on this question
+> ask Gemini a follow-up about that
 > have DeepSeek summarize this file
-> switch sidecar to claude sonnet 4.6
-> what sidecar models are available?
+> switch sidecar to grok
+> what sidecar models are available, and what do they cost?
 
 Any phrasing that routes a prompt to a non-default model triggers the skill. See [skills/sidecar/SKILL.md](skills/sidecar/SKILL.md) for the full invocation contract, model-switching flow, and troubleshooting.
 
 From a repo checkout you can also drive the scripts directly:
 
 ```bash
+bash skills/sidecar/scripts/ask.sh --model gemini "review this plan"   # one fork
+bash skills/sidecar/scripts/ask.sh --continue "expand on point 2"      # follow-up, same session
+bash skills/sidecar/scripts/compare.sh "is this API design sound?" gemini gpt deepseek
+bash skills/sidecar/scripts/list-models.sh deepseek      # browse the catalog ($/M pricing included)
+bash skills/sidecar/scripts/status.sh                    # config + recent asks + remaining credit
 bash skills/sidecar/scripts/test.sh                      # end-to-end check
-bash skills/sidecar/scripts/list-models.sh deepseek      # browse the catalog
-bash skills/sidecar/scripts/set-model.sh deepseek/deepseek-v3.2
-bash skills/sidecar/scripts/status.sh
 ```
+
+### Fork & Fold features
+
+- **Per-call model override** — `ask.sh --model <slug-or-vendor>` routes one prompt without touching your default. Bare vendor words (`gemini`, `gpt`, `deepseek`, `grok`, `llama`) resolve through a per-user alias map (`sidecar-state/defaults.env`); refresh stale slugs with `refresh-defaults.sh`.
+- **Parallel compare** — `compare.sh "<prompt>" <model> <model> ...` runs each fork concurrently on its own proxy/port and prints labeled sections per model.
+- **Sessions** — each ask records its session; `ask.sh --continue` resumes the conversation with the same model (within one Cowork session).
+- **Fold contract** — `ask.sh --fold` makes the subagent end with a structured block (answer / evidence / confidence / sources), and every ask's first output line is `[sidecar: <slug>]` — the authoritative routing record.
+- **Read-only by default** — subagents get `Read/Grep/Glob` only; pass `--full-tools` when the task genuinely needs to run code or write files.
+- **Cost visibility** — `history.log` records every ask (model, duration, tokens); `status.sh` shows the last five plus your remaining OpenRouter credit; `list-models.sh` lists $/M token pricing.
 
 ## Architecture
 
@@ -105,9 +122,9 @@ bash skills/sidecar/scripts/status.sh
         │  (Anthropic API format, /v1/messages)
         ▼
    ┌────────────────────────┐
-   │ Sidecar proxy          │  127.0.0.1:3000
-   │ (vendored bundle.cjs)  │  spawns per call, exits after
-   └────────────────────────┘
+   │ Sidecar proxy          │  127.0.0.1:<probed port>
+   │ (vendored bundle.cjs)  │  spawns per call, exits after;
+   └────────────────────────┘  parallel asks each get their own
         │
         │  (OpenAI chat-completions format, /v1/chat/completions)
         ▼
@@ -127,7 +144,8 @@ The translation layer is a patched [anthropic-proxy](https://github.com/maxnowac
 
 - **Per-user state lives in your mounted folder.** Scripts discover it via `_locate.sh` (a `sidecar-state/` or `.sidecar/` dir in whichever folder is connected to Cowork). `.env.local` holds your key — never share or commit it.
 - **The proxy process is per-bash-call.** Inside the sandbox, start it and use it within the same bash invocation; it doesn't outlive the call.
-- **Model identity is unreliable.** Ask a sidecar model "which model are you?" and it will often hallucinate Claude/GPT regardless of what's actually upstream. The authoritative source is the `model` field on a curl probe of `http://127.0.0.1:3000/v1/messages`, or the proxy log.
+- **Model identity is unreliable.** Ask a sidecar model "which model are you?" and it will often hallucinate Claude/GPT regardless of what's actually upstream. The authoritative source is the `[sidecar: <slug>]` line ask.sh prints first (taken from config, not from the model), or the proxy log.
+- **Subagents are read-only by default.** A third-party model drives the Claude CLI subagent, so Bash/Edit/Write are opt-in (`--full-tools`). Good default for reviews and second opinions; lift it deliberately when the task needs execution.
 - **Provider allowlists.** Some OpenRouter models are only served by specific providers (e.g. DeepSeek R1 needs `novita` or `azure`). On a 404 with "No allowed providers", flip providers on at https://openrouter.ai/settings/preferences.
 
 ## Operating systems

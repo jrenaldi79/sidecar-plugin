@@ -1,6 +1,6 @@
 ---
 name: sidecar
-description: Run any OpenRouter-hosted LLM (Gemini, Claude, GPT, DeepSeek, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "how would Claude approach ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", or any phrasing that routes a prompt to a non-default LLM.
+description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "compare models on X", "ask Gemini AND GPT", "ask Gemini a follow-up", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", "what has sidecar cost me", or any phrasing that routes a prompt to a non-default LLM.
 ---
 
 # Sidecar — call any OpenRouter LLM as a Claude CLI subagent
@@ -41,7 +41,7 @@ else echo "MODE=ready"; fi
 (Plugin presence is implicit — if you're running this skill, the plugin is installed.)
 
 - **`needs-setup`** — no state dir / no `.env.local`. Run `setup.sh`, then prompt for the OpenRouter key.
-- **`needs-key`** — `.env.local` present but the API key is still the placeholder. Use the Edit tool to set `OPENROUTER_API_KEY` (never echo the key).
+- **`needs-key`** — `.env.local` present but the API key is still the placeholder. Pipe it in via `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh` (never the Edit/Write tools, never echo the key back).
 - **`ready`** — go straight to **Use** for the user's actual request.
 
 ---
@@ -143,49 +143,48 @@ If you find yourself reaching for `curl http://127.0.0.1:3000/v1/messages` to sa
 
 ### 1. Resolve the vendor → model
 
-This table is a *recommendation snapshot* (current as of April 2026). OpenRouter's catalog turns over; if a slug 404s, fall back to the most recent matching slug from `list-models.sh`. A quick web search for "OpenRouter <vendor> latest model" can confirm.
+The vendor → slug map lives in `<state>/defaults.env` (seeded by `setup.sh`, per-user, refreshable — it does NOT live in this document, because the catalog turns over). `ask.sh --model` resolves bare vendor words (**gemini, gpt, deepseek, grok, llama**) through it automatically, so for vendor-level requests there is nothing to resolve yourself.
 
-| User says | Default slug (Apr 2026) |
-|---|---|
-| Gemini, Google | `google/gemini-3.1-pro-preview` |
-| GPT, ChatGPT, OpenAI, GPT-5 | `openai/gpt-5.5` |
-| DeepSeek | `deepseek/deepseek-v4-flash` |
-| Grok, xAI | `x-ai/grok-4.3` |
-| Llama, Meta | `meta-llama/llama-4-maverick` |
+If a slug has gone stale (upstream says "not a valid model ID"), refresh the alias and retry:
 
-Anthropic/Claude is deliberately omitted — Sidecar is for second opinions from a *different* model than the parent Claude. If the user *explicitly* asks for Claude anyway, honor it: search the catalog and switch to the matching slug (`list-models.sh claude`).
+```bash
+bash <SKILL_DIR>/scripts/refresh-defaults.sh                  # current map + newest candidates per vendor
+bash <SKILL_DIR>/scripts/refresh-defaults.sh gemini <new-slug>  # validate + remap
+```
 
-If the user names a *specific* model ("ask GPT-5 Codex"), search the catalog:
+Anthropic/Claude is deliberately not aliased — Sidecar is for second opinions from a *different* model than the parent Claude. If the user *explicitly* asks for Claude anyway, honor it with a full slug (`ask.sh --model anthropic/<slug>`; find it via `list-models.sh claude`).
+
+If the user names a *specific* model ("ask GPT-5 Codex"), search the catalog and pass the full slug:
 ```bash
 bash <SKILL_DIR>/scripts/list-models.sh gpt-5
 ```
 
-### 2. Switch the proxy's model only if needed
+### 2. Per-call override vs default switch
 
-```bash
-STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
-set -a; source "$STATE/.env.local"; set +a
-DESIRED="<resolved-slug>"
-if [ "$COMPLETION_MODEL" != "$DESIRED" ]; then
-  bash <SKILL_DIR>/scripts/set-model.sh "$DESIRED"
-fi
-```
+`ask.sh --model <slug-or-vendor>` overrides per call without touching any state — use it for every "ask <vendor> ..." request. Only run `set-model.sh <slug>` when the user wants to *change their default* ("switch sidecar to grok"). Concurrent asks to different models are safe: each gets its own proxy on its own port.
 
 ### 3. Run the prompt — use `scripts/ask.sh`
 
-`ask.sh` is the canonical entry point. It boots the proxy, locates the parent Cowork transcript, spawns sub-Claude with `--add-dir` access to that transcript plus a system-prompt hint, runs the prompt, then cleans up. Sub-Claude self-decides whether to consult the transcript based on the question.
+`ask.sh` is the canonical entry point. It boots a proxy on a free port, locates the parent Cowork transcript, spawns sub-Claude with `--add-dir` access to that transcript plus a system-prompt hint, runs the prompt, then cleans up. Sub-Claude self-decides whether to consult the transcript based on the question.
 
 ```bash
-bash <SKILL_DIR>/scripts/ask.sh "<the user's prompt verbatim>"
+bash <SKILL_DIR>/scripts/ask.sh --model gemini "<the user's prompt verbatim>"
 ```
 
 Or via stdin (better for prompts with quotes/special chars):
 
 ```bash
-echo "<the user's prompt verbatim>" | bash <SKILL_DIR>/scripts/ask.sh
+echo "<the user's prompt verbatim>" | bash <SKILL_DIR>/scripts/ask.sh --model gemini
 ```
 
-Pipe the output back to the user, prefaced by which model you actually routed to (so they know).
+Other flags (combine freely):
+
+- `--fold` — sub-Claude ends with a structured fold block (answer / key evidence / confidence / sources consulted). Use when you'll integrate the answer into further work rather than just relaying it.
+- `--full-tools` — **sub-Claude is read-only (Read/Grep/Glob) by default.** Add this when the ask requires running code or writing files ("have DeepSeek fix this", "run the tests"); leave it off for opinions, reviews, and summaries.
+- `--add-dir <path>` — extra readable directory (e.g. the user's project folder for "have GPT review this repo").
+- `--continue` — resume the previous sidecar conversation (see step 5).
+
+**Output contract:** the first stdout line is always `[sidecar: <slug>]`, written by ask.sh from config — the authoritative routing record. Relay it (or fold it into your attribution); don't hand-write a model preface, and don't trust the model's own claims about its identity.
 
 ### 4. About the parent-transcript access
 
@@ -193,11 +192,23 @@ Pipe the output back to the user, prefaced by which model you actually routed to
 
 If the user's prompt is clearly self-contained ("what is 13 × 17"), sub-Claude will ignore the transcript. If it's context-dependent, sub-Claude will Grep it and Read just the matching range — never the whole file.
 
-### 5. Multi-turn within one ask
+### 5. Follow-ups — sessions and `--continue`
 
-For a multi-step prompt, you can either:
-- Put both steps in one `ask.sh` call — sub-Claude handles them in sequence.
-- For full control, drop down to `<SKILL_DIR>/scripts/start.sh` + multiple `claude -p` calls in one bash invocation (proxy stays warm).
+Each successful ask records its session (id, model, cwd) in the sandbox. When the user follows up on a previous sidecar answer ("ask Gemini what it meant by X"):
+
+```bash
+bash <SKILL_DIR>/scripts/ask.sh --continue "what did you mean by X?"
+```
+
+Sub-Claude resumes with its prior context intact — same model unless `--model` is also given. Sessions survive between bash calls but **not across Cowork sessions**; if `--continue` reports no prior session, re-ask with the needed context inline. For a multi-step prompt within one ask, just put both steps in the prompt — sub-Claude handles them in sequence.
+
+### 6. Compare models in parallel ("ask Gemini AND GPT ...")
+
+```bash
+bash <SKILL_DIR>/scripts/compare.sh "<prompt>" gemini gpt deepseek
+```
+
+Each fork is a full ask.sh subagent running concurrently on its own proxy/port; output is one labeled section per model (failed forks show their error tail inline without sinking the rest). **Launch compare.sh with `run_in_background: true` and read the result via TaskOutput** — N parallel reasoning chains will exceed the bash tool's 45s ceiling. The fold is YOUR job afterwards: synthesize the sections, surface where the models disagree, and attribute claims to the models that made them.
 
 ---
 
@@ -208,8 +219,8 @@ For a multi-step prompt, you can either:
 | Layer | Default | Where it lives | What to do if it fires |
 |---|---|---|---|
 | `ask.sh` `MAX_RUN_SECONDS` | 180s | inside the script | Bump it: `MAX_RUN_SECONDS=300 bash <SKILL_DIR>/scripts/ask.sh "..."` |
-| Cowork bash tool ceiling | 45s | the tool itself | **You can't extend this from inside the skill.** If you're invoking ask.sh from a Cowork bash tool and the call legitimately takes >45s, the bash tool kills the whole thing regardless of `MAX_RUN_SECONDS`. Workarounds: split the work into shorter prompts, or run ask.sh from a real terminal where the 45s cap doesn't apply. |
-| Upstream fetch (OpenRouter) | 120s | `proxy/anthropic-proxy-patched.mjs` | A hung Gemini/OpenAI request can't take longer than 120s before the proxy gives up. Logged in `$HOME/sidecar-ask.log`. |
+| Cowork bash tool ceiling | 45s | the tool itself | **Launch the bash call with `run_in_background: true` and read the result via TaskOutput when it completes** — this dodges the ceiling entirely and is the default move for any ask that might run long (always for compare.sh). Fallbacks: split the work into shorter prompts, or run from a real terminal. |
+| Upstream fetch (OpenRouter) | 120s | `proxy/anthropic-proxy-patched.mjs` | A hung Gemini/OpenAI request can't take longer than 120s before the proxy gives up. Logged in `$HOME/sidecar-ask.<pid>.log` (newest: `ls -t $HOME/sidecar-ask.*.log \| head -1`). |
 
 **Read the failure message ask.sh prints.** Exit codes are diagnostic:
 - `124` — hit `MAX_RUN_SECONDS`. Bump it.
@@ -232,8 +243,9 @@ You'll see tool-use events, transcript-grep activity, and any upstream errors as
 | `EAI_AGAIN getaddrinfo` in proxy log | DNS / outbound network blocked | Add `openrouter.ai` to Cowork Settings ▸ Capabilities ▸ Allowed domains |
 | `No allowed providers` upstream error | OpenRouter account doesn't have the provider for that model | Enable provider at https://openrouter.ai/settings/preferences, or pick a different slug |
 | `is not a valid model ID` | Stale slug | Run `list-models.sh <vendor>` and use a current one |
-| Hangs forever, no output | Proxy crashed or upstream hung | The 120s upstream timeout will fire. Check `tail -20 $HOME/sidecar-ask.log` for the actual error |
-| Exit 137 (SIGKILL) | Cowork bash tool ceiling | Run from terminal, or chunk the work |
+| Hangs forever, no output | Proxy crashed or upstream hung | ask.sh auto-restarts a dead proxy and retries once; the 120s upstream timeout fires on hangs. Check `tail -20 $(ls -t $HOME/sidecar-ask.*.log \| head -1)` for the actual error |
+| Exit 137 (SIGKILL) | Cowork bash tool ceiling | Relaunch with `run_in_background: true` (read via TaskOutput), or chunk the work |
+| "tool not allowed" / sub-Claude can't run code | Read-only default | Rerun with `--full-tools` (or `SIDECAR_TOOLS=full`) |
 
 **Don't mistake a slow call for a stuck one.** Reasoning + tool-use chains routinely take 60–120s. Wait for `MAX_RUN_SECONDS` before declaring it stuck.
 
@@ -248,17 +260,28 @@ bash <SKILL_DIR>/scripts/list-models.sh grok
 bash <SKILL_DIR>/scripts/set-model.sh x-ai/grok-4.3
 ```
 
+(For a one-off model choice, prefer `ask.sh --model` — it doesn't touch the default.)
+
+### Refresh a stale vendor alias ("gemini slug 404s")
+
+```bash
+bash <SKILL_DIR>/scripts/refresh-defaults.sh                  # view map + newest candidates
+bash <SKILL_DIR>/scripts/refresh-defaults.sh gemini <slug>    # validate + remap
+```
+
 ### Test ("test sidecar")
 
 ```bash
 bash <SKILL_DIR>/scripts/test.sh
 ```
 
-### Status ("what's sidecar configured for")
+### Status / spend ("what's sidecar configured for", "what has sidecar cost me")
 
 ```bash
 bash <SKILL_DIR>/scripts/status.sh
 ```
+
+Shows config, proxy state, the last 5 asks (time, model, duration, exit code, tokens — from `<state>/history.log`), and remaining OpenRouter credit. `list-models.sh` shows $/M token pricing per model for cost-informed model picks.
 
 ---
 
@@ -266,8 +289,9 @@ bash <SKILL_DIR>/scripts/status.sh
 
 - **Proxy is transport, not agent.** Curling `/v1/messages` directly returns one model shot with no tool use, no transcript context, no reasoning loop. To answer a user prompt, always use `ask.sh` (which spawns sub-Claude). Curl is acceptable only for diagnostics or `test.sh`-style probes.
 - **Plugin is read-only.** State (.env.local) lives in the user's connected folder under `sidecar-state/` (or legacy `.sidecar/`), not inside the plugin. The plugin install caches a vendored proxy; it doesn't mutate at runtime.
-- **Model identity is unreliable.** Models often hallucinate Claude/GPT regardless of what's actually configured. Authoritative source: the `model` field on a curl probe of `http://127.0.0.1:3000/v1/messages`, or the proxy log.
-- **CLI's `--model` is cosmetic** when going through Sidecar — the proxy substitutes upstream using `COMPLETION_MODEL` / `REASONING_MODEL` from `.env.local`.
+- **Model identity is unreliable.** Models often hallucinate Claude/GPT regardless of what's actually configured. Authoritative source: the `[sidecar: <slug>]` first line of ask.sh's stdout (printed from config, not the model), or the proxy log.
+- **Sub-Claude is read-only by default** (`Read,Grep,Glob`; Bash/Edit/Write/WebFetch disallowed). A third-party model is driving it — write/execute capability is opt-in via `--full-tools` or `SIDECAR_TOOLS=full`.
+- **The Claude CLI's own `--model` flag is cosmetic** when going through Sidecar — the proxy substitutes upstream using `COMPLETION_MODEL`/`REASONING_MODEL` (or ask.sh's per-call `SIDECAR_*_OVERRIDE`s).
 - **Provider allowlists.** Some OpenRouter models need specific providers (`novita`, `azure`). 404 "No allowed providers" → flip those on at https://openrouter.ai/settings/preferences.
 - **Sandbox process lifetime.** Detached background processes die between bash calls — always do start/use/stop in a single bash invocation.
 - **Mac-mount permissions.** The connected folder allows file creation but blocks `rm`/`unlink`. Scripts use redirect-truncate (`>`) instead of `mv` — don't change that pattern.
@@ -280,4 +304,5 @@ bash <SKILL_DIR>/scripts/status.sh
 - **`/tmp` may not be writable.** In some Cowork sandboxes `/tmp` is owned by root and locked down. Scripts probe `[ -w "$HOME" ]` first and only fall through to `/tmp` if `$HOME` happens to be unwritable. Don't reorder those candidates.
 - **Folder name doesn't have to be `ClaudeCowork`.** `_locate.sh` picks the first user-mounted, writable folder and creates `sidecar-state/` inside it if no existing state dir is found. Override with `SIDECAR_STATE_DIR=...` if you want a specific location. The dir is named `sidecar-state` (no leading dot) because dotfile names break on Windows + virtiofs + OneDrive.
 - **Outbound network goes through HTTP_PROXY/HTTPS_PROXY** when set. The proxy bundle's `wrapper.mjs` installs a global undici dispatcher so Node `fetch()` honors those env vars. No-op when the env vars are unset.
-- **Occasional crashes.** `anthropic-proxy` sometimes blows up on a partial JSON chunk from OpenRouter. Restart it. If it becomes a regular nuisance, pin the version in the vendored package.
+- **Occasional crashes.** `anthropic-proxy` sometimes blows up on a partial JSON chunk from OpenRouter. ask.sh detects a dead proxy after a failed call and auto-restarts + retries once; if crashes become a regular nuisance, pin the version in the vendored package.
+- **Sessions are sandbox-scoped.** The `--continue` map lives at `$HOME/.sidecar-sessions` inside the sandbox (deliberately NOT the mounted state dir — the session JSONLs it points to die with the Cowork session, so the map must too).
