@@ -1,6 +1,6 @@
 ---
 name: sidecar
-description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "compare models on X", "ask Gemini AND GPT", "ask Gemini a follow-up", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", "what has sidecar cost me", "what can sidecar do", "sidecar help", "how do I use sidecar", "explain sidecar", or any phrasing that routes a prompt to a non-default LLM or asks what Sidecar is.
+description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "compare models on X", "ask Gemini AND GPT", "ask Gemini a follow-up", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", "what has sidecar cost me", "what's my openrouter balance", "how am I using my credits", "show/visualize my model usage", "what can sidecar do", "sidecar help", "how do I use sidecar", "explain sidecar", or any phrasing that routes a prompt to a non-default LLM or asks what Sidecar is.
 ---
 
 # Sidecar — call any OpenRouter LLM as a Claude CLI subagent
@@ -77,6 +77,7 @@ When the request is discovery rather than execution, don't run scripts up front 
 | Structured fold | "…and fold the answer back" | The answer returns as answer / evidence / confidence / sources, ready to integrate into ongoing work |
 | Let it write code | "have DeepSeek fix this and run the tests" | Sidecars are read-only by default; asking for fixes/execution enables full tools |
 | Models & cost | "switch sidecar to grok", "what has sidecar cost me" | Change the default model, browse the live catalog with $/M pricing, see per-ask history + remaining credit |
+| Usage dashboard | "show my OpenRouter usage", "what's my balance" | Pulls live account balance + 30-day per-model spend from OpenRouter and renders it as an on-demand chart |
 
 Close the tour with Sidecar's current state: run the Step 0 config check (plus `status.sh` if ready), then either offer setup or suggest a first ask tailored to what the user is currently working on.
 
@@ -328,7 +329,27 @@ bash <SKILL_DIR>/scripts/test.sh
 bash <SKILL_DIR>/scripts/status.sh
 ```
 
-Shows config, proxy state, the last 5 asks (time, model, duration, exit code, tokens — from `<state>/history.log`), and remaining OpenRouter credit. `list-models.sh` shows $/M token pricing per model for cost-informed model picks.
+Shows config, proxy state, the last 5 asks (time, model, duration, exit code, tokens — from `<state>/history.log`), and remaining OpenRouter credit. `list-models.sh` shows $/M token pricing per model for cost-informed model picks. For account-wide usage analytics (not just this project's asks), see **Usage dashboard** below.
+
+### Usage dashboard ("what's my OpenRouter balance", "how am I using my credits", "visualize my usage")
+
+```bash
+bash <SKILL_DIR>/scripts/usage.sh --json
+```
+
+All data comes live from the OpenRouter API — account-wide and cross-project, deliberately NOT the local `history.log` (which only sees asks made from one state dir). The JSON has three sections:
+
+- `credits` — balance + all-time purchased/used. Always available with the regular API key.
+- `spend` — today / this week / this month, from the key endpoint.
+- `activity` — per-model and per-date rollups for the last 30 days (`rows` has the raw date × model grain for time-series charts). **Requires a separate management key**; until one is configured this section is `available: false` with a `hint`.
+
+**If `activity.available` is false** and the user wants the per-model breakdown: explain that OpenRouter gates analytics behind a management key, point them at https://openrouter.ai/settings/management-keys, then save it with `echo "<mgmt-key>" | bash <SKILL_DIR>/scripts/set-key.sh --management` (same rule as the API key: never use Edit/Write on `.env.local`, never echo the key) and rerun `usage.sh`. Don't block on it — balance and spend work without it, so show those first and offer the upgrade.
+
+**Visualize, don't dump JSON.** This is the payoff of the feature — turn the data into a chart:
+
+- **Cowork**: call `mcp__visualize__read_me` with `modules: ["data_viz", "chart"]`, then `mcp__visualize__show_widget`. Good defaults: headline balance + spend numbers up top; a stacked bar of daily cost by model built from `activity.rows`; a donut of cost share from `activity.by_model`. Pick the view that answers the user's actual question — "am I running out?" wants the balance trend, "which model is eating my credits?" wants the per-model split.
+- **Claude Code**: no visualize tools — run `usage.sh` without `--json` for the formatted summary, or present a compact markdown table from the JSON.
+- Never include either key in chart code, labels, or any output.
 
 ---
 

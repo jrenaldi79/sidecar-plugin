@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 — 2026-06-09 "Usage Dashboard"
+
+Account-wide OpenRouter usage analytics with on-demand visualization.
+
+### Added
+- **`usage.sh`** — live OpenRouter usage report: balance + all-time totals
+  (`/api/v1/credits`), today/week/month spend (`/api/v1/key`), and — with an
+  optional management key — per-model/per-date rollups of the last 30 days
+  (`/api/v1/activity`). `--json` emits a machine-readable report
+  (`credits` / `spend` / `activity`) that the skill turns into a chart.
+  Deliberately API-only: the local `history.log` only sees one project's asks.
+- **`set-key.sh --management`** — writes the optional
+  `OPENROUTER_MANAGEMENT_KEY` to `.env.local` (same stdin pipe, sk-or-
+  validation, and never-echo rules as the API key).
+- **SKILL.md Usage dashboard mode** — triggers like "what's my OpenRouter
+  balance" / "how am I using my credits"; instructs Claude to render the JSON
+  as a visualization (Cowork widget; formatted text in Claude Code) and to
+  offer the management-key upgrade when per-model data is locked.
+
 ## 0.2.1 — 2026-06-09 "Both Environments"
 
 Sidecar is now first-class in Claude Code on a host, not just Cowork.

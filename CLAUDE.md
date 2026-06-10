@@ -11,6 +11,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 - **Fork & Fold**: fork a prompt to another model mid-session, fold the answer back into the main Claude context
 - **Vendored proxy**: all deps pre-bundled into `bundle.cjs` via esbuild — no runtime `npm install` in ephemeral Cowork sandboxes
 - **Marketplace install**: this repo doubles as a plugin marketplace (`/plugin marketplace add jrenaldi79/sidecar-plugin`)
+- **Usage dashboard**: `usage.sh` pulls account-wide balance/spend/per-model activity live from OpenRouter (`--json` is the visualization contract; SKILL.md tells Claude to chart it). Per-model data needs the optional management key (`set-key.sh --management`) — the local `history.log` is deliberately NOT a data source (per-project only).
 - **Discoverability**: `/sidecar:help` slash command (`commands/help.md`) + "Help mode" in SKILL.md give users a capability tour; setup ends with the same tour. The canonical tour table lives ONLY in SKILL.md's Help mode section — the command and setup step reference it, never duplicate it.
 
 ---
@@ -100,9 +101,11 @@ skills/sidecar/scripts/start.sh                    # boot the Sidecar proxy.
 skills/sidecar/scripts/status.sh                   # report whether Sidecar is running and its current configuration.
 skills/sidecar/scripts/stop.sh                     # kill any running Sidecar proxy.
 skills/sidecar/scripts/test.sh                     # verify the Sidecar plugin install end-to-end.
+skills/sidecar/scripts/usage.sh                    # fetch OpenRouter account usage: balance, spend, per-model activity.
 tests/helpers/cli-harness.mjs                      # hermetic environment for integration-testing the Sidecar
 tests/helpers/fake-openrouter.mjs                  # programmable mock of OpenRouter's
 tests/helpers/proxy-harness.mjs                    # spawn the real proxy as a child process against a fake
+tests/helpers/script-env.mjs                       # shared hermetic environment for shell-script integration
 tests/integration/error-resilience.test.mjs        # Tier 1 tests for proxy error handling:
 tests/integration/fork-fold-scripts.test.mjs       # integration locks for the 0.2.0 Fork & Fold
 tests/integration/request-translation.test.mjs     # regression locks for Anthropic -> OpenAI
@@ -110,6 +113,7 @@ tests/integration/response-nonstreaming.test.mjs
 tests/integration/response-streaming.test.mjs
 tests/integration/schema-sanitize.test.mjs         # P4 regression locks. Google's
 tests/integration/scripts.test.mjs
+tests/integration/usage-scripts.test.mjs           # Integration locks for the 0.3.0 usage dashboard: usage.sh (OpenRouter
 tests/live/matrix.sh                               # Tier 2 LIVE verification against real OpenRouter.
 tests/run-integration.sh                           # Tier 1: mock-based integration tests. No network, no key.
 ```
