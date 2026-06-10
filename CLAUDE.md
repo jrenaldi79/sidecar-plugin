@@ -150,6 +150,25 @@ The real end-to-end test (`test.sh`) needs a live OpenRouter key and network, so
 
 ---
 
+## Releasing a New Version (uprev checklist)
+
+The version string is what ships a release to installed clients — Claude Code caches plugins by resolved version, so **pushing new commits WITHOUT bumping the version does nothing for existing installs**; `/plugin update` and auto-update see the same version and keep the cached copy.
+
+Version lives in TWO manifests; bump BOTH to the same value in the release commit:
+
+1. `.claude-plugin/plugin.json` → `version` — **authoritative**. Claude Code reads this one; it silently wins over the marketplace entry.
+2. `.claude-plugin/marketplace.json` → `plugins[0].version` — fallback/catalog listing only. Keep it in sync or the marketplace listing silently misrepresents what installs.
+
+Full release checklist:
+
+- [ ] Bump `version` in both manifests above
+- [ ] Add a `CHANGELOG.md` entry
+- [ ] If proxy sources changed: `bash build.sh` and commit the refreshed `bundle-min.cjs` (see Critical Gotchas)
+- [ ] `bash tests/run-integration.sh` green; `test.sh` if a key is configured
+- [ ] Push to GitHub — clients pick up the new version via `/plugin marketplace update` + `/plugin update sidecar` (or auto-update)
+
+---
+
 ## Logging & Debugging
 
 - **stdout vs stderr discipline**: `ask.sh`'s stdout IS the model's answer (first line: the `[sidecar: <slug>]` routing header) — all diagnostics go to stderr (`>&2`). Other scripts print human-readable status to stdout, `error:`/`warning:`-prefixed messages to stderr. This is shell, not a service — no structured logger; keep those prefixes consistent.
