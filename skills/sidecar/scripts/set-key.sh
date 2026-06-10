@@ -21,12 +21,10 @@
 #   echo <openrouter-api-key> | bash set-key.sh   # stdin (preferred — keeps
 #                                                   the key out of the
 #                                                   process command line)
-#   bash set-key.sh --management [<key>]          # write the optional
-#                                                   management key instead
-#                                                   (unlocks usage.sh's
-#                                                   per-model analytics)
 #
-# Never echoes the key.
+# Regular inference keys only — Sidecar deliberately has no concept of an
+# OpenRouter management key (it can create/delete API keys; too much
+# privilege to ask users for). Never echoes the key.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -35,16 +33,6 @@ source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
 
-# Which .env.local variable to write. --management targets the optional
-# management key used by usage.sh for /api/v1/activity.
-VAR_NAME="OPENROUTER_API_KEY"
-KEY_URL="https://openrouter.ai/keys"
-if [ "${1:-}" = "--management" ]; then
-  VAR_NAME="OPENROUTER_MANAGEMENT_KEY"
-  KEY_URL="https://openrouter.ai/settings/management-keys"
-  shift
-fi
-
 # Read key from arg or stdin.
 if [ "$#" -ge 1 ]; then
   KEY="$1"
@@ -52,10 +40,10 @@ else
   if [ -t 0 ]; then
     cat >&2 <<EOF
 usage:
-  bash set-key.sh [--management] <openrouter-api-key>
-  echo <openrouter-api-key> | bash set-key.sh [--management]
+  bash set-key.sh <openrouter-api-key>
+  echo <openrouter-api-key> | bash set-key.sh
 
-Get a key at $KEY_URL (must start with sk-or-).
+Get a key at https://openrouter.ai/keys (must start with sk-or-).
 EOF
     exit 1
   fi
@@ -83,16 +71,16 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Read content into memory, replace the target variable's line (or append
+# Read content into memory, replace the OPENROUTER_API_KEY line (or append
 # if missing), write back via redirect-truncate. NEVER echo the key.
-NEW_CONTENT=$(awk -v key="$KEY" -v var="$VAR_NAME" '
-  index($0, var "=") == 1 {
-    print var "=\"" key "\""
+NEW_CONTENT=$(awk -v key="$KEY" '
+  /^OPENROUTER_API_KEY=/ {
+    print "OPENROUTER_API_KEY=\"" key "\""
     saw=1; next
   }
   { print }
   END {
-    if (!saw) print var "=\"" key "\""
+    if (!saw) print "OPENROUTER_API_KEY=\"" key "\""
   }
 ' "$ENV_FILE")
 
@@ -104,9 +92,9 @@ fi
 printf '%s\n' "$NEW_CONTENT" > "$ENV_FILE"
 
 # Confirm the update without echoing the key.
-if grep -q "^${VAR_NAME}=\"sk-or-" "$ENV_FILE"; then
+if grep -q '^OPENROUTER_API_KEY="sk-or-' "$ENV_FILE"; then
   TAIL="${KEY: -4}"
-  echo "$VAR_NAME updated in $ENV_FILE (sk-or-…$TAIL)"
+  echo "OPENROUTER_API_KEY updated in $ENV_FILE (sk-or-…$TAIL)"
 else
   echo "set-key.sh: write completed but key not detected in file — check $ENV_FILE manually" >&2
   exit 5

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0 — 2026-06-10 "Regular Key Only"
+
+Kills the management-key path introduced in 0.3.0 before anyone adopts it.
+An OpenRouter management key can create and delete the account's API keys —
+far too much privilege to ask end users to paste into a tool, even for a
+read-only chart. The usage dashboard now uses only the regular inference key.
+
+### Removed
+- **`set-key.sh --management`** and `OPENROUTER_MANAGEMENT_KEY` (template
+  comment included). The flag now fails key validation like any other
+  non-key argument.
+- **`usage.sh` activity section** — per-model/per-date rollups via
+  `/api/v1/activity`. The `--json` contract is now just
+  `credits` + `spend`. Local `history.log` aggregation was evaluated and
+  rejected as an alternative (per-state-dir, misrepresents cross-project
+  usage); a Critical Gotcha in CLAUDE.md guards against reintroducing either.
+
+### Changed
+- SKILL.md's Usage dashboard mode instructs Claude to *refuse* per-model
+  requests with the reason, and point at the OpenRouter web dashboard
+  (user's own browser session), `status.sh`, and `list-models.sh` pricing
+  as the safe alternatives.
+
 ## 0.3.0 — 2026-06-09 "Usage Dashboard"
 
 Account-wide OpenRouter usage analytics with on-demand visualization.

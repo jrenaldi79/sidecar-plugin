@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# usage.sh — fetch OpenRouter account usage: balance, spend, per-model activity.
-# Per-model/per-date analytics (last 30 days) require the optional management key.
+# usage.sh — fetch OpenRouter account usage: balance and day/week/month spend.
 #
 # Usage:
 #   usage.sh           # human-readable summary
 #   usage.sh --json    # machine-readable JSON (for on-demand visualization)
 #
-# Data sources — all live OpenRouter API, deliberately NOT the local
-# history.log (which only sees asks from one project/state dir):
-#   /api/v1/credits    regular key      total purchased / used -> balance
-#   /api/v1/key        regular key      daily/weekly/monthly spend, limit
-#   /api/v1/activity   management key   per-model daily rollups, 30 days
+# Data sources — all live OpenRouter API, regular inference key only:
+#   /api/v1/credits    total purchased / used -> balance
+#   /api/v1/key        daily/weekly/monthly spend, key limit
 #
-# OPENROUTER_MANAGEMENT_KEY in .env.local is optional (set via
-# `set-key.sh --management`); without it the activity section is marked
-# unavailable with a setup hint. Never echoes either key.
+# Deliberately NOT supported, do not reintroduce:
+#   - /api/v1/activity (per-model rollups): requires an OpenRouter management
+#     key, which can create/delete API keys — far too much privilege to ask
+#     end users to hand to a tool.
+#   - local history.log analysis: per-project, so it misrepresents
+#     cross-project usage.
+#
+# Never echoes the key.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -38,22 +40,13 @@ if [ -z "${OPENROUTER_API_KEY:-}" ] || [ "${OPENROUTER_API_KEY:0:6}" != "sk-or-"
   exit 1
 fi
 
-fetch() { # $1=path $2=bearer key — body on stdout, empty on any failure
+fetch() { # $1=path — body on stdout, empty on any failure
   curl -sS --max-time 10 "https://openrouter.ai$1" \
-    -H "Authorization: Bearer $2" 2>/dev/null || true
+    -H "Authorization: Bearer $OPENROUTER_API_KEY" 2>/dev/null || true
 }
 
-CREDITS_RAW="$(fetch /api/v1/credits "$OPENROUTER_API_KEY")"
-KEYINFO_RAW="$(fetch /api/v1/key "$OPENROUTER_API_KEY")"
-
-ACTIVITY_RAW="" HAS_MGMT=0
-if [ -n "${OPENROUTER_MANAGEMENT_KEY:-}" ]; then
-  HAS_MGMT=1
-  ACTIVITY_RAW="$(fetch /api/v1/activity "$OPENROUTER_MANAGEMENT_KEY")"
-fi
-
-RAW_CREDITS="$CREDITS_RAW" RAW_KEY="$KEYINFO_RAW" RAW_ACTIVITY="$ACTIVITY_RAW" \
-HAS_MGMT="$HAS_MGMT" MODE="$MODE" python3 <<'PY'
+RAW_CREDITS="$(fetch /api/v1/credits)" RAW_KEY="$(fetch /api/v1/key)" \
+MODE="$MODE" python3 <<'PY'
 import json, os
 
 def load(name):
@@ -62,62 +55,26 @@ def load(name):
     except ValueError:
         return None
 
-credits  = load('RAW_CREDITS')
-keyinfo  = load('RAW_KEY')
-activity = load('RAW_ACTIVITY')
-has_mgmt = os.environ.get('HAS_MGMT') == '1'
-mode     = os.environ.get('MODE', 'human')
+def data(doc):
+    return doc['data'] if isinstance(doc, dict) and isinstance(doc.get('data'), dict) else None
 
-report = {'credits': None, 'spend': None, 'activity': {'available': False}}
+report = {'credits': None, 'spend': None}
 
-if isinstance(credits, dict) and isinstance(credits.get('data'), dict):
-    d = credits['data']
-    total = d.get('total_credits') or 0
-    used  = d.get('total_usage') or 0
+c = data(load('RAW_CREDITS'))
+if c is not None:
+    total = c.get('total_credits') or 0
+    used  = c.get('total_usage') or 0
     report['credits'] = {'total_purchased': total, 'total_used': used,
                          'balance': round(total - used, 6)}
 
-if isinstance(keyinfo, dict) and isinstance(keyinfo.get('data'), dict):
-    d = keyinfo['data']
-    report['spend'] = {'daily': d.get('usage_daily'),
-                       'weekly': d.get('usage_weekly'),
-                       'monthly': d.get('usage_monthly'),
-                       'limit': d.get('limit')}
+k = data(load('RAW_KEY'))
+if k is not None:
+    report['spend'] = {'daily': k.get('usage_daily'),
+                       'weekly': k.get('usage_weekly'),
+                       'monthly': k.get('usage_monthly'),
+                       'limit': k.get('limit')}
 
-SUM_KEYS = ('usage', 'requests', 'prompt_tokens', 'completion_tokens',
-            'reasoning_tokens')
-act = report['activity']
-if has_mgmt and isinstance(activity, dict) and isinstance(activity.get('data'), list):
-    by_model, by_date = {}, {}
-    for r in activity['data']:
-        m = by_model.setdefault(r.get('model') or '?',
-                                dict.fromkeys(SUM_KEYS, 0))
-        for k in SUM_KEYS:
-            m[k] += r.get(k) or 0
-        d = by_date.setdefault(r.get('date') or '?',
-                               {'usage': 0, 'requests': 0})
-        d['usage'] += r.get('usage') or 0
-        d['requests'] += r.get('requests') or 0
-    act['available'] = True
-    act['rows'] = activity['data']
-    act['by_model'] = sorted(
-        ({'model': k, **{s: round(v[s], 6) for s in SUM_KEYS}}
-         for k, v in by_model.items()),
-        key=lambda a: -a['usage'])
-    act['by_date'] = sorted(
-        ({'date': k, 'usage': round(v['usage'], 6), 'requests': v['requests']}
-         for k, v in by_date.items()),
-        key=lambda a: a['date'])
-elif has_mgmt:
-    act['hint'] = ('management key is set but /api/v1/activity returned no '
-                   'usable data — verify the key at '
-                   'https://openrouter.ai/settings/management-keys')
-else:
-    act['hint'] = ('per-model analytics need a management key: create one at '
-                   'https://openrouter.ai/settings/management-keys, then run '
-                   'set-key.sh --management')
-
-if mode == 'json':
+if os.environ.get('MODE') == 'json':
     print(json.dumps(report, indent=2))
     raise SystemExit
 
@@ -135,14 +92,6 @@ s = report['spend']
 if s:
     print('  spend:   today %s | this week %s | this month %s'
           % (usd(s['daily']), usd(s['weekly']), usd(s['monthly'])))
-if act['available']:
-    print('  top models (last 30 days):')
-    print('    %-45s %10s %9s %12s' % ('model', 'cost', 'requests', 'tokens'))
-    for a in act['by_model'][:10]:
-        toks = a['prompt_tokens'] + a['completion_tokens'] + a['reasoning_tokens']
-        print('    %-45s %10s %9d %12d'
-              % (a['model'][:45], usd(a['usage']), a['requests'], toks))
-else:
-    print('  per-model activity: unavailable')
-    print('    %s' % act['hint'])
+    if s['limit'] is not None:
+        print('  key limit: %s' % usd(s['limit']))
 PY
