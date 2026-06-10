@@ -99,6 +99,7 @@ skills/sidecar/scripts/status.sh                   # report whether Sidecar is r
 skills/sidecar/scripts/stop.sh                     # kill any running Sidecar proxy.
 skills/sidecar/scripts/test.sh                     # verify the Sidecar plugin install end-to-end.
 tests/helpers/fake-openrouter.mjs                  # programmable mock of OpenRouter's
+tests/helpers/proxy-harness.mjs                    # spawn the real proxy as a child process against a fake
 tests/run-integration.sh                           # Tier 1: mock-based integration tests. No network, no key.
 ```
 <!-- /AUTO:tree -->
