@@ -107,6 +107,7 @@ tests/integration/request-translation.test.mjs     # regression locks for Anthro
 tests/integration/response-nonstreaming.test.mjs
 tests/integration/response-streaming.test.mjs
 tests/integration/scripts.test.mjs
+tests/live/matrix.sh                               # Tier 2 LIVE verification against real OpenRouter.
 tests/run-integration.sh                           # Tier 1: mock-based integration tests. No network, no key.
 ```
 <!-- /AUTO:tree -->
