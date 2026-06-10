@@ -142,13 +142,14 @@ The real end-to-end test (`test.sh`) needs a live OpenRouter key and network, so
 
 ## Logging & Debugging
 
-- **stdout vs stderr discipline**: `ask.sh`'s stdout IS the model's answer — all diagnostics go to stderr (`>&2`). Other scripts print human-readable status to stdout, `error:`/`warning:`-prefixed messages to stderr. This is shell, not a service — no structured logger; keep those prefixes consistent.
-- **Where logs land**: first writable dir of `$HOME`, `$TMPDIR`, `.` — `sidecar-ask.log` (proxy output during `ask.sh`), `sidecar-test.log` (during `test.sh`). `$HOME` is reliably writable in Cowork sandboxes; `/tmp` often isn't.
+- **stdout vs stderr discipline**: `ask.sh`'s stdout IS the model's answer (first line: the `[sidecar: <slug>]` routing header) — all diagnostics go to stderr (`>&2`). Other scripts print human-readable status to stdout, `error:`/`warning:`-prefixed messages to stderr. This is shell, not a service — no structured logger; keep those prefixes consistent.
+- **Where logs land**: first writable dir of `$HOME`, `$TMPDIR`, `.` — `sidecar-ask.<pid>.log`/`.err`/`.json` (per ask.sh run; newest via `ls -t $HOME/sidecar-ask.*.log | head -1`), `sidecar-compare.<pid>/` (per compare.sh run), `sidecar-test.log` (during `test.sh`). `$HOME` is reliably writable in Cowork sandboxes; `/tmp` often isn't.
 - **Live progress**: `SIDECAR_VERBOSE=1 bash skills/sidecar/scripts/ask.sh "..."` mirrors sub-Claude stderr as it runs (otherwise silent until completion).
-- **Check state fast**: `bash skills/sidecar/scripts/status.sh` — prints port, models, and the key as `sk-or-…XXXX` (last 4 only, by design).
-- **Debug the proxy interactively**: `bash skills/sidecar/scripts/start.sh` runs it in the foreground (`exec node bundle.cjs`); stop with Ctrl-C or `stop.sh`.
+- **Check state fast**: `bash skills/sidecar/scripts/status.sh` — prints port, models, the key as `sk-or-…XXXX` (last 4 only, by design), the last 5 asks from `<state>/history.log`, and remaining OpenRouter credit.
+- **Debug the proxy interactively**: `bash skills/sidecar/scripts/start.sh` runs it in the foreground (`exec node bundle.cjs`); stop with Ctrl-C or `stop.sh`. Per-run overrides: `SIDECAR_PORT_OVERRIDE` / `SIDECAR_COMPLETION_OVERRIDE` / `SIDECAR_REASONING_OVERRIDE` (applied after `.env.local` is sourced — this is how ask.sh does per-call models and ports).
 - **Hot-patch without rebuilding**: `SIDECAR_BUNDLE_OVERRIDE=/path/to/bundle.cjs` points `start.sh` at an alternate bundle — useful when debugging upstream proxy bugs.
-- **Timeouts**: Cowork's bash tool kills invocations at ~45s regardless of `ask.sh`'s `MAX_RUN_SECONDS` (default 180). Long calls go in a real terminal, or split the prompt.
+- **Timeouts**: Cowork's bash tool kills invocations at ~45s regardless of `ask.sh`'s `MAX_RUN_SECONDS` (default 180). Long calls (always compare.sh): launch with `run_in_background: true` and read via TaskOutput; or use a real terminal. On stock macOS `timeout(1)` may be absent — ask.sh warns and runs unguarded.
+- **Sub-Claude is read-only by default** (`Read,Grep,Glob`): pass `--full-tools` (or `SIDECAR_TOOLS=full`) when an ask must run code or write files. Sessions for `--continue` live in `$HOME/.sidecar-sessions` (sandbox-scoped on purpose).
 
 ---
 
