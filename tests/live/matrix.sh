@@ -12,6 +12,21 @@ REPO="$(cd "$DIR/../.." && pwd)"
 SCRIPTS="$REPO/skills/sidecar/scripts"
 BUNDLE="$REPO/skills/sidecar/proxy/bundle.cjs"
 
+# Never orphan a proxy on Ctrl-C or early exit.
+PROXY_PID=""
+trap 'kill "$PROXY_PID" 2>/dev/null' EXIT
+
+# Pick a writable directory for proxy logs (probe via [ -w ] — Cowork
+# sandboxes lock down /tmp; same pattern as scripts/test.sh).
+LOG_DIR=""
+for cand_dir in "$HOME" "${TMPDIR:-/tmp}" "."; do
+  if [ -d "$cand_dir" ] && [ -w "$cand_dir" ]; then
+    LOG_DIR="$cand_dir"
+    break
+  fi
+done
+LOG_DIR="${LOG_DIR:-$HOME}"
+
 # Strictness matrix: lenient (Gemini) / strict (DeepSeek) / strict+Responses-path (OpenAI).
 # Verify slugs with list-models.sh if a probe 404s.
 MODELS=(
@@ -69,9 +84,17 @@ with_timeout() { # $1=seconds, rest=command. GNU `timeout` is absent on stock ma
 boot_proxy() { # uses $MODEL; sets $PORT $PROXY_PID; returns 1 on boot failure
   PORT=$(( ( RANDOM % 2000 ) + 33000 ))
   OPENROUTER_API_KEY="$OPENROUTER_API_KEY" COMPLETION_MODEL="$MODEL" REASONING_MODEL="$MODEL" \
-    PORT="$PORT" node "$BUNDLE" >"/tmp/sidecar-matrix-$PORT.log" 2>&1 &
+    PORT="$PORT" node "$BUNDLE" >"$LOG_DIR/sidecar-matrix-$PORT.log" 2>&1 &
   PROXY_PID=$!
-  for _ in $(seq 1 40); do (echo > "/dev/tcp/127.0.0.1/$PORT") 2>/dev/null && return 0; sleep 0.25; done
+  for _ in $(seq 1 40); do
+    if (echo > "/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+      # Port answering isn't enough — a foreign listener on a colliding port
+      # would pass. Confirm OUR proxy process is alive.
+      kill -0 "$PROXY_PID" 2>/dev/null || return 1
+      return 0
+    fi
+    sleep 0.25
+  done
   return 1
 }
 
@@ -128,4 +151,7 @@ fi
 
 echo; echo "=== live matrix results ==="; printf "%b" "$GRID"
 echo; echo "PASS: $PASS  FAIL: $FAIL"
+# On a fully-passing run the proxy logs are noise — remove them. On any
+# failure they're kept for diagnosis (one log per booted port).
+if [ "$FAIL" -eq 0 ]; then rm -f "$LOG_DIR"/sidecar-matrix-*.log; fi
 exit "$FAIL"
