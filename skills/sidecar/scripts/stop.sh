@@ -5,7 +5,7 @@
 
 set -u
 
-PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
+PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle(-min)?\.cjs" 2>/dev/null || true)
 
 if [ -z "$PIDS" ]; then
   echo "no Sidecar proxy running"
@@ -15,6 +15,6 @@ fi
 echo "stopping Sidecar proxy (pids: $PIDS)"
 kill $PIDS 2>/dev/null || true
 sleep 0.5
-PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
+PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle(-min)?\.cjs" 2>/dev/null || true)
 [ -n "$PIDS" ] && kill -9 $PIDS 2>/dev/null || true
 echo "stopped"

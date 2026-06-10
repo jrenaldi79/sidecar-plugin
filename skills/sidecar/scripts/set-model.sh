@@ -83,7 +83,7 @@ echo "  COMPLETION_MODEL = $COMPLETION"
 echo "  REASONING_MODEL  = $REASONING"
 
 # Restart proxy if running
-PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
+PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle(-min)?\.cjs" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
   RESTART_LOG="$(find_workdir)/sidecar.log"
   echo "restarting proxy (was pid: $PIDS)..."

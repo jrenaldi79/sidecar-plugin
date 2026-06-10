@@ -29,7 +29,7 @@ else
 fi
 
 PORT="${PORT:-3000}"
-PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
+PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle(-min)?\.cjs" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
   echo "  process: running (pids: $PIDS)"
 else

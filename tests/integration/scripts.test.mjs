@@ -92,6 +92,40 @@ test('_locate: hard default when nothing mounted', () => {
   assert.equal(locate(env), path.join(home, 'mnt/ClaudeCowork/sidecar-state'))
 })
 
+// Proxy-entry resolution: bundle.cjs preferred, bundle-min.cjs fallback
+// (git-clone/marketplace installs have no bundle.cjs — it's gitignored).
+const locateEntry = (env) =>
+  run('bash', ['-c', 'source "$1"; echo "$SIDECAR_PROXY_ENTRY"', 'bash', path.join(SCRIPTS, '_locate.sh')], env)
+    .stdout.trim()
+
+function fakePluginDir(home, bundles) {
+  const plugin = path.join(home, 'fake-plugin')
+  fs.mkdirSync(path.join(plugin, 'proxy'), { recursive: true })
+  for (const b of bundles) fs.writeFileSync(path.join(plugin, 'proxy', b), '// stub\n')
+  return plugin
+}
+
+test('_locate: proxy entry prefers bundle.cjs when both bundles exist', () => {
+  const { home, env } = makeEnv()
+  const plugin = fakePluginDir(home, ['bundle.cjs', 'bundle-min.cjs'])
+  assert.equal(locateEntry({ ...env, SIDECAR_PLUGIN_DIR: plugin }),
+    path.join(plugin, 'proxy/bundle.cjs'))
+})
+
+test('_locate: proxy entry falls back to bundle-min.cjs in a git-clone install', () => {
+  const { home, env } = makeEnv()
+  const plugin = fakePluginDir(home, ['bundle-min.cjs'])     // no bundle.cjs, like a clone
+  assert.equal(locateEntry({ ...env, SIDECAR_PLUGIN_DIR: plugin }),
+    path.join(plugin, 'proxy/bundle-min.cjs'))
+})
+
+test('_locate: SIDECAR_BUNDLE_OVERRIDE beats both bundles', () => {
+  const { home, env } = makeEnv()
+  const plugin = fakePluginDir(home, ['bundle.cjs', 'bundle-min.cjs'])
+  assert.equal(locateEntry({ ...env, SIDECAR_PLUGIN_DIR: plugin, SIDECAR_BUNDLE_OVERRIDE: '/hot/patched.cjs' }),
+    '/hot/patched.cjs')
+})
+
 function seededState(home) {
   const state = path.join(home, 'mnt/MyFolder/sidecar-state')
   fs.mkdirSync(state, { recursive: true })

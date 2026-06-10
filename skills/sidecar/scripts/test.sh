@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
+PROXY_ENTRY="$SIDECAR_PROXY_ENTRY"
 PASS=0; FAIL=0
 note() { echo "  - $*"; }
 pass() { echo "  PASS: $*"; PASS=$((PASS+1)); }

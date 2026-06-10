@@ -39,12 +39,14 @@ if [ "$missing" -ne 0 ]; then
 fi
 echo
 
-# Verify the plugin's vendored proxy is intact
-if [ -f "$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs" ]; then
-  ok "bundled proxy at $SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
+# Verify the plugin's vendored proxy is intact. _locate.sh resolves the entry:
+# bundle.cjs (full, from .plugin builds) or bundle-min.cjs (tracked fallback
+# present in git-clone/marketplace installs).
+if [ -f "$SIDECAR_PROXY_ENTRY" ]; then
+  ok "bundled proxy at $SIDECAR_PROXY_ENTRY"
 else
-  err "bundled proxy missing at $SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
-  err "Plugin install may be corrupt — reinstall the plugin."
+  err "bundled proxy missing — looked for proxy/bundle.cjs and proxy/bundle-min.cjs"
+  err "under $SIDECAR_PLUGIN_DIR. Plugin install may be corrupt — reinstall."
   exit 1
 fi
 echo

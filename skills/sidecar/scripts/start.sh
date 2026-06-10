@@ -13,9 +13,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_locate.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-# Honor SIDECAR_BUNDLE_OVERRIDE so a power user can point at a hot-patched
-# bundle without rebuilding the plugin (useful for debugging upstream bugs).
-PROXY_ENTRY="${SIDECAR_BUNDLE_OVERRIDE:-$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs}"
+# Entry resolved by _locate.sh: SIDECAR_BUNDLE_OVERRIDE > bundle.cjs >
+# bundle-min.cjs (the tracked fallback that makes git-clone installs work).
+PROXY_ENTRY="$SIDECAR_PROXY_ENTRY"
 
 if [ -f "$ENV_FILE" ]; then
   set -a

@@ -50,4 +50,18 @@ fi
 # 5. Hard default — only used if literally nothing is mounted.
 : "${SIDECAR_STATE_DIR:=$HOME/mnt/ClaudeCowork/sidecar-state}"
 
-export SIDECAR_PLUGIN_DIR SIDECAR_STATE_DIR
+# Proxy entry resolution (shared by start.sh, ask.sh, setup.sh, test.sh):
+#   1. $SIDECAR_BUNDLE_OVERRIDE — hot-patch escape hatch, always wins
+#   2. proxy/bundle.cjs        — full dev bundle (gitignored; built by build.sh)
+#   3. proxy/bundle-min.cjs    — tracked minified bundle, the fallback that
+#                                makes marketplace installs (git clones, which
+#                                have no bundle.cjs) work out of the box
+if [ -n "${SIDECAR_BUNDLE_OVERRIDE:-}" ]; then
+  SIDECAR_PROXY_ENTRY="$SIDECAR_BUNDLE_OVERRIDE"
+elif [ -f "$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs" ]; then
+  SIDECAR_PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
+else
+  SIDECAR_PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle-min.cjs"
+fi
+
+export SIDECAR_PLUGIN_DIR SIDECAR_STATE_DIR SIDECAR_PROXY_ENTRY

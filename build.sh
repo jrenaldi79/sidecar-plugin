@@ -45,6 +45,16 @@ echo "bundling proxy with esbuild..."
     --bundle --platform=node --target=node18 --format=cjs \
     --outfile=bundle.cjs --log-level=warning )
 echo "  -> $BUNDLE ($(du -h "$BUNDLE" | cut -f1))"
+
+# 2b. Refresh the TRACKED minified bundle. Marketplace installs are git
+# clones, which have no bundle.cjs (gitignored) — _locate.sh falls back to
+# bundle-min.cjs, so it must stay in sync with the proxy source. Commit it
+# whenever anthropic-proxy-patched.mjs / wrapper.mjs change.
+MIN_BUNDLE="$PROXY_DIR/bundle-min.cjs"
+( cd "$PROXY_DIR" && npx --yes esbuild "$ENTRY" \
+    --bundle --minify --platform=node --target=node18 --format=cjs \
+    --outfile=bundle-min.cjs --log-level=warning )
+echo "  -> $MIN_BUNDLE ($(du -h "$MIN_BUNDLE" | cut -f1))"
 echo
 
 # 3. Zip the plugin source EXCEPT node_modules + dev artifacts.

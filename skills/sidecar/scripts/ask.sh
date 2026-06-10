@@ -31,7 +31,7 @@ source "$SCRIPT_DIR/_locate.sh"
 source "$SCRIPT_DIR/_runtime.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
-PROXY_ENTRY="$SIDECAR_PLUGIN_DIR/proxy/bundle.cjs"
+PROXY_ENTRY="$SIDECAR_PROXY_ENTRY"
 # Sessions live in sandbox $HOME, NOT the mounted state dir: the session
 # JSONLs in $HOME/.claude/projects die with the Cowork session — so must this map.
 SESSIONS_FILE="$HOME/.sidecar-sessions"
