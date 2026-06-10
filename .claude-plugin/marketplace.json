@@ -1,0 +1,20 @@
+{
+  "name": "sidecar-marketplace",
+  "description": "Marketplace for the Sidecar plugin — call any OpenRouter-hosted LLM as a Claude CLI subagent",
+  "owner": {
+    "name": "John Renaldi",
+    "email": "jrenaldi79@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "sidecar",
+      "description": "Call any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Claude, etc.) as a Claude CLI subagent. Runs a vendored local proxy that translates Anthropic API <-> OpenAI chat-completions format, so claude -p can route to non-Anthropic models cleanly.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "John Renaldi",
+        "email": "jrenaldi79@gmail.com"
+      }
+    }
+  ]
+}

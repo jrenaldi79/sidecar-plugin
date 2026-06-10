@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "Call any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Claude, etc.) as a Claude CLI subagent. Runs a vendored local proxy that translates Anthropic API <-> OpenAI chat-completions format, so claude -p can route to non-Anthropic models cleanly. Includes parent-conversation transcript access so subagents can self-pull context when relevant.",
   "author": {
-    "name": "John Renaldi"
+    "name": "John Renaldi",
+    "email": "jrenaldi79@gmail.com"
   },
+  "homepage": "https://github.com/jrenaldi79/sidecar-plugin",
+  "repository": "https://github.com/jrenaldi79/sidecar-plugin",
+  "license": "MIT",
   "keywords": ["subagent", "openrouter", "proxy", "multi-model", "fork-and-fold"]
 }

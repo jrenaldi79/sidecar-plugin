@@ -26,6 +26,25 @@ The `proxy/` subfolder (with `node_modules/`) is created by `install.sh` and git
 
 ## Install
 
+### From the marketplace (recommended)
+
+This repo doubles as a Claude Code plugin marketplace, so it can be installed remotely into Claude Code or Cowork:
+
+```
+/plugin marketplace add jrenaldi79/sidecar-plugin
+/plugin install sidecar@sidecar-marketplace
+```
+
+Or tell Claude in a Cowork chat:
+
+> add the plugin marketplace at https://github.com/jrenaldi79/sidecar-plugin and install the sidecar plugin
+
+After install, run the skill's setup once to enter your OpenRouter API key (get one at https://openrouter.ai/keys):
+
+> set up sidecar
+
+### Manual (copy the folder)
+
 In your Cowork chat (with `Documents/ClaudeCowork/` selected as the working folder), tell Claude:
 
 > install sidecar
@@ -136,7 +155,14 @@ For most users the in-Cowork path is enough — the proxy spawns per-bash-call w
 
 ## Distributing to teammates
 
-Sidecar is designed to ship as a single folder.
+The easiest path is the marketplace install above — point teammates at:
+
+```
+/plugin marketplace add jrenaldi79/sidecar-plugin
+/plugin install sidecar@sidecar-marketplace
+```
+
+Alternatively, Sidecar still ships as a single folder:
 
 1. Copy `sidecar/` into your teammate's `Documents/ClaudeCowork/` (or whatever folder they connect to Cowork).
 2. Have them open a Cowork chat in that folder and say "install sidecar".
