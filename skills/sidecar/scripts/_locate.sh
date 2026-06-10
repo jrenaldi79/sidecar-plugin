@@ -6,17 +6,22 @@
 #   SIDECAR_STATE_DIR  — user-writable state dir holding .env.local
 #
 # State dir name conventions:
-#   - PRIMARY:   <connected-folder>/sidecar-state/   (default; works on Mac, Linux, Windows)
+#   - COWORK:    <connected-folder>/sidecar-state/   (sandbox default; works on
+#                                                     Mac, Linux, Windows hosts)
 #   - LEGACY:    <connected-folder>/.sidecar/        (recognized for back-compat; do NOT
 #                                                     create new ones — the leading dot
 #                                                     breaks Windows/NTFS/OneDrive virtiofs)
+#   - HOST:      $HOME/.sidecar-state/               (Claude Code on a real host —
+#                                                     no $HOME/mnt mount layout exists)
 #
 # Resolution order:
 #   1. $SIDECAR_STATE_DIR env var if set (explicit override always wins)
-#   2. First $HOME/mnt/*/sidecar-state/  containing .env.local  (preferred)
+#   2. First $HOME/mnt/*/sidecar-state/  containing .env.local  (Cowork)
 #   3. First $HOME/mnt/*/.sidecar/       containing .env.local  (legacy)
-#   4. First user-mounted, writable folder + /sidecar-state/    (first-run fallback)
-#   5. Hard default: $HOME/mnt/ClaudeCowork/sidecar-state
+#   4. $HOME/.sidecar-state/             containing .env.local  (host)
+#   5. First user-mounted, writable folder + /sidecar-state/    (Cowork first run)
+#   6. $HOME/.sidecar-state when no $HOME/mnt exists            (host first run)
+#   7. Hard default: $HOME/mnt/ClaudeCowork/sidecar-state
 
 # Plugin root = parent of the directory this file is in (scripts/_locate.sh -> skill root)
 SIDECAR_PLUGIN_DIR="${SIDECAR_PLUGIN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -31,8 +36,15 @@ if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
   done
 fi
 
-# 4. First-run fallback: pick the first user-mounted, writable folder and use
-#    sidecar-state/ inside it. Skip system paths and dotfile directories.
+# 4. Host: existing ~/.sidecar-state (Claude Code outside the sandbox).
+#    Checked after the mnt scan so a Cowork session never shadows its own
+#    mounted state with a host-side leftover.
+if [ -z "${SIDECAR_STATE_DIR:-}" ] && [ -f "$HOME/.sidecar-state/.env.local" ]; then
+  SIDECAR_STATE_DIR="$HOME/.sidecar-state"
+fi
+
+# 5. Cowork first-run fallback: pick the first user-mounted, writable folder
+#    and use sidecar-state/ inside it. Skip system paths and dotfile dirs.
 if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
   for cand in "$HOME"/mnt/*/; do
     [ -d "$cand" ] || continue
@@ -47,7 +59,14 @@ if [ -z "${SIDECAR_STATE_DIR:-}" ]; then
   done
 fi
 
-# 5. Hard default — only used if literally nothing is mounted.
+# 6. Host first-run: no Cowork mount layout at all -> ~/.sidecar-state.
+#    (Dotfile naming is fine here: the virtiofs/OneDrive concerns only apply
+#    to sandbox-mounted folders, not a real host $HOME.)
+if [ -z "${SIDECAR_STATE_DIR:-}" ] && [ ! -d "$HOME/mnt" ]; then
+  SIDECAR_STATE_DIR="$HOME/.sidecar-state"
+fi
+
+# 7. Hard default — mnt exists but holds nothing usable.
 : "${SIDECAR_STATE_DIR:=$HOME/mnt/ClaudeCowork/sidecar-state}"
 
 # Proxy entry resolution (shared by start.sh, ask.sh, setup.sh, test.sh):

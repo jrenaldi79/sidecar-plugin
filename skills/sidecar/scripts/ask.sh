@@ -122,14 +122,14 @@ BASE_PORT="${PORT:-3000}"
 # 180s default: reasoning + tool-use chains routinely exceed 60s. The proxy
 # has its own 120s upstream-fetch timeout (anthropic-proxy-patched.mjs P2).
 MAX_RUN_SECONDS="${MAX_RUN_SECONDS:-180}"
-# timeout(1) is GNU coreutils — in the Linux sandbox always, on stock macOS
-# often not. Degrade to no wall-clock guard rather than failing outright.
+# timeout(1) is GNU coreutils — always in the Linux sandbox, on stock macOS
+# only via brew (as gtimeout). Degrade to no wall-clock guard, not failure.
 TIMEOUT_CMD=()
-if command -v timeout >/dev/null 2>&1; then
-  TIMEOUT_CMD=( timeout --foreground "$MAX_RUN_SECONDS" )
-else
-  echo "ask.sh: timeout(1) not found — running without the ${MAX_RUN_SECONDS}s guard" >&2
-fi
+for t in timeout gtimeout; do
+  command -v "$t" >/dev/null 2>&1 && { TIMEOUT_CMD=( "$t" --foreground "$MAX_RUN_SECONDS" ); break; }
+done
+[ "${#TIMEOUT_CMD[@]}" -eq 0 ] && \
+  echo "ask.sh: timeout/gtimeout not found — running without the ${MAX_RUN_SECONDS}s guard" >&2
 
 boot_proxy "$BASE_PORT" "$LOG" || exit 1
 # The CLI must target the port we actually bound — never the .env.local

@@ -156,12 +156,17 @@ HTTP_CODE=$(curl -sS --max-time 10 -o /dev/null -w "%{http_code}" \
   https://openrouter.ai/api/v1/models 2>/dev/null || echo "failed")
 if [ "$HTTP_CODE" = "200" ]; then
   ok "openrouter.ai reachable (HTTP 200)"
-else
+elif [ -d "$HOME/mnt" ]; then
+  # Cowork sandbox: outbound traffic is allow-listed per domain.
   warn "openrouter.ai NOT reachable from this sandbox (got: $HTTP_CODE)"
   warn "Add the domain to your Cowork allow list before using Sidecar:"
   warn "  Settings ▸ Capabilities ▸ Allowed domains  →  add 'openrouter.ai'"
   warn "Or, for testing, switch the same panel to 'Allow all domains'."
   warn "After updating, rerun setup.sh to re-probe."
+else
+  # Claude Code host: no allow-list — this is a real connectivity problem.
+  warn "openrouter.ai NOT reachable (got: $HTTP_CODE)"
+  warn "Check the host's network/VPN/proxy, then rerun setup.sh to re-probe."
 fi
 echo
 

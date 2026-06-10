@@ -59,7 +59,7 @@ Destructive operations are denied outright: `rm -rf /`, `git push --force`, `git
   -> response translated back; answer folded into parent context
 ```
 
-Per-user state (`.env.local`: OpenRouter key, default model, port) lives in a `sidecar-state/` dir under the user's mounted folder, discovered by `_locate.sh`. The plugin itself is read-only at runtime.
+Per-user state (`.env.local`: OpenRouter key, default model, port) lives in a `sidecar-state/` dir under the user's mounted folder (Cowork) or `~/.sidecar-state/` (Claude Code on a host), discovered by `_locate.sh`. The plugin itself is read-only at runtime.
 
 ---
 
@@ -90,7 +90,7 @@ skills/sidecar/scripts/_locate.sh                  # sourced by Sidecar scripts.
 skills/sidecar/scripts/_runtime.sh                 # sourced helpers shared by ask.sh and compare.sh.
 skills/sidecar/scripts/ask.sh                      # send one prompt to an OpenRouter model as a Claude CLI subagent.
 skills/sidecar/scripts/compare.sh                  # fork one prompt to several models in parallel, print labeled results.
-skills/sidecar/scripts/find-transcript.sh          # locate the parent Cowork session's JSONL transcript.
+skills/sidecar/scripts/find-transcript.sh          # locate the parent session's JSONL transcript.
 skills/sidecar/scripts/list-models.sh              # fetch the live OpenRouter model catalog, optionally filtered.
 skills/sidecar/scripts/refresh-defaults.sh         # view or update the vendor → model alias map that
 skills/sidecar/scripts/set-key.sh                  # inject the OpenRouter API key into .env.local.

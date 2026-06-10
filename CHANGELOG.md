@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.1 — 2026-06-09 "Both Environments"
+
+Sidecar is now first-class in Claude Code on a host, not just Cowork.
+
+- **Host state dir** — `_locate.sh` falls back to `~/.sidecar-state/` when no
+  Cowork mount layout (`$HOME/mnt`) exists; Cowork resolution is unchanged
+  and always wins inside the sandbox.
+- **Host transcript self-pull** — `find-transcript.sh` resolves
+  `~/.claude/projects` when the Cowork bind mount is absent, so "ask Gemini
+  what we discussed" works in Claude Code too. Also fixes a silent BSD/macOS
+  failure (GNU-only `find -printf` replaced with a portable `[ -nt ]` scan).
+- **macOS timeout** — ask.sh now falls back to `gtimeout` (brew coreutils)
+  before degrading to an unguarded run.
+- **Environment-aware docs** — SKILL.md detects Cowork vs Claude Code
+  (`[ -d "$HOME/mnt" ]`) and branches: state location, key/model collection
+  without the visualize form, allow-list steps marked Cowork-only.
+  setup.sh's connectivity guidance is likewise environment-aware.
+
 ## 0.2.0 — 2026-06-09 "Fork & Fold"
 
 Completes the Fork & Fold pattern: parallel forks, real folds, and safer

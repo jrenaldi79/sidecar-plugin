@@ -5,13 +5,29 @@ description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) a
 
 # Sidecar — call any OpenRouter LLM as a Claude CLI subagent
 
-Sidecar serves two purposes: (a) one-time setup of the local proxy, and (b) on-demand "ask <vendor>" routing for prompts that should run through a model other than the user's default Claude. The proxy is vendored inside this plugin (no per-folder `npm install` required), so once the plugin is installed it's available in every Cowork session.
+Sidecar serves two purposes: (a) one-time setup of the local proxy, and (b) on-demand "ask <vendor>" routing for prompts that should run through a model other than the user's default Claude. The proxy is vendored inside this plugin (no per-folder `npm install` required), so once the plugin is installed it's available in every session.
+
+## Two environments — detect once, then branch
+
+Sidecar runs in **Cowork** (Linux sandbox VM, mount layout under `$HOME/mnt`) and in **Claude Code** (directly on the host). Detect with one check — `[ -d "$HOME/mnt" ]` → Cowork, otherwise Claude Code — and apply these differences:
+
+| | Cowork | Claude Code |
+|---|---|---|
+| State dir | `<connected-folder>/sidecar-state/` | `~/.sidecar-state/` |
+| Bash tool | `mcp__workspace__bash`, ~45s ceiling | built-in `Bash`, generous/configurable timeout |
+| Long calls | `run_in_background: true` + TaskOutput (mandatory for compare.sh) | same pattern works; ceiling rarely bites |
+| Key/model collection | `mcp__visualize` elicitation form (exact cards below) | no visualize tools — use `AskUserQuestion` for the model pick and ask the user to paste the key in chat, then pipe it to `set-key.sh` |
+| Network | needs `openrouter.ai` on the Settings ▸ Capabilities allow-list | no allow-list; skip that step |
+| `timeout(1)` | always present | stock macOS lacks it — ask.sh warns and runs unguarded (`brew install coreutils` fixes) |
+| Path translation | Windows hosts need the prefix swap below | not applicable |
+
+Scripts are environment-agnostic — `_locate.sh` and `find-transcript.sh` resolve the right locations automatically in both. Everything else in this document applies to both environments unless marked Cowork-only.
 
 ## How to invoke scripts
 
 When a skill is loaded, the skill-loading system gives you the absolute path to this skill's base directory. **Use that path for all script invocations** — don't try to rediscover it via `find`. Throughout this document, `<SKILL_DIR>` is shorthand for that base directory; substitute it with the actual path when running commands. Scripts live at `<SKILL_DIR>/scripts/`, the vendored proxy bundle is at `<SKILL_DIR>/proxy/bundle.cjs`.
 
-### Path translation in Cowork (read this before your first script call)
+### Path translation in Cowork (Cowork-only — read before your first script call)
 
 Cowork on **Windows** hands you a Windows path like `C:\Users\<user>\rpm\plugin_<ID>\skills\sidecar`. Bash runs in a Linux sandbox where the same plugin lives at `/sessions/<session>/mnt/.remote-plugins/plugin_<ID>/skills/sidecar/`. The `plugin_<ID>` segment is identical between the two — only the prefix changes. Translate the Windows path to the bash form once, before your first invocation, otherwise the first `setup.sh` call will fail with `No such file or directory`.
 
@@ -21,11 +37,11 @@ On Mac/Linux Cowork hosts the path is already in Linux form and no translation i
 
 Setup uses these deferred tools. Load them all in a single `ToolSearch` round-trip — not one at a time — to avoid stalls mid-flow:
 
-- `mcp__workspace__bash` — every script invocation
-- `mcp__visualize__read_me` + `mcp__visualize__show_widget` — the elicitation form for API-key + model
+- `mcp__workspace__bash` (Cowork) — every script invocation; in Claude Code the built-in `Bash` tool is already available
+- `mcp__visualize__read_me` + `mcp__visualize__show_widget` (Cowork) — the elicitation form for API-key + model; absent in Claude Code (use `AskUserQuestion` + chat instead)
 - `TaskCreate` / `TaskUpdate` — only if you plan to track progress (see Task tracking note below)
 
-The user's `.env.local` lives in a writable state directory under whichever folder is connected to Cowork (default: first user-mounted folder, falling back to `ClaudeCowork`). Scripts auto-discover it via `_locate.sh`.
+The user's `.env.local` lives in a writable state directory — under the connected folder in Cowork, `~/.sidecar-state/` in Claude Code. Scripts auto-discover it via `_locate.sh`; `SIDECAR_STATE_DIR` overrides everywhere.
 
 ---
 
@@ -34,7 +50,8 @@ The user's `.env.local` lives in a writable state directory under whichever fold
 **Exception — discovery requests skip the config gate.** If the user is asking what Sidecar *is* or *can do* ("what can sidecar do", "sidecar help", "how do I use this") rather than asking to run something, go to **Help mode** below; run the config check only to report status at the end of the tour.
 
 ```bash
-STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
+# Covers both environments: Cowork mounts AND Claude Code's ~/.sidecar-state.
+STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar "$HOME/.sidecar-state" 2>/dev/null | head -1)
 if [ -z "$STATE" ] || [ ! -f "$STATE/.env.local" ]; then echo "MODE=needs-setup"
 elif ! grep -q '^OPENROUTER_API_KEY="sk-or-' "$STATE/.env.local" 2>/dev/null; then echo "MODE=needs-key"
 else echo "MODE=ready"; fi
@@ -75,12 +92,15 @@ The full happy path. Numbers tie to the detailed steps below — when in doubt, 
 # (1) Run setup: creates state dir + .env.local from template, probes connectivity
 bash <SKILL_DIR>/scripts/setup.sh
 
-# (2) If setup reported openrouter.ai NOT reachable, send the user to
-#     Cowork Settings ▸ Capabilities ▸ Allowed domains, then rerun (1).
+# (2) COWORK ONLY: if setup reported openrouter.ai NOT reachable, send the
+#     user to Cowork Settings ▸ Capabilities ▸ Allowed domains, then rerun (1).
+#     (Claude Code has no allow-list — a failed probe there is real network trouble.)
 
 # (3) Render the elicitation form (mcp__visualize__show_widget). Collect:
 #     - api_key:        sk-or-...
 #     - default_model:  one of the four slugs in the cards table below
+#     CLAUDE CODE: no visualize tools — AskUserQuestion for the model pick
+#     (same four options), and ask the user to paste the key in chat.
 
 # (4) Write the key (NEVER use Edit/Write on .env.local — see virtiofs note):
 echo "<api-key-from-form>" | bash <SKILL_DIR>/scripts/set-key.sh
@@ -104,7 +124,7 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
    ```
    Idempotent. Verifies prereqs, ensures the vendored proxy bundle is intact, creates `<connected-folder>/sidecar-state/` if missing, seeds `.env.local` from template, runs a writability probe on the state dir, and probes outbound connectivity to `openrouter.ai`.
 
-2. **Confirm the openrouter.ai allow-list.** Cowork sandboxes restrict outbound traffic to allow-listed domains. If `setup.sh` reported `openrouter.ai NOT reachable`, tell the user to:
+2. **Confirm the openrouter.ai allow-list (Cowork only).** Cowork sandboxes restrict outbound traffic to allow-listed domains. If `setup.sh` reported `openrouter.ai NOT reachable`, tell the user to:
 
    > Open Cowork Settings ▸ Capabilities ▸ Allowed domains and add `openrouter.ai` (or temporarily flip "Allow all domains" for testing). Then rerun `setup.sh` to confirm the probe passes.
 
@@ -266,12 +286,13 @@ You'll see tool-use events, transcript-grep activity, and any upstream errors as
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Empty / one-sentence response, exit 0 | Thinking model (Gemini 3.x Pro, GPT-5.5 reasoning) burned most of `max_tokens` on internal CoT before visible text. Made worse if `SIDECAR_STREAMING=false`, which drops the model's `reasoning` field entirely. | Two-part fix: (a) keep `SIDECAR_STREAMING=true` (default since 2026-05-06 — set explicitly in `.env.local` if you upgraded an old install); (b) bump max_tokens to ≥3000 for Gemini 3.x Pro, ≥1500 for other thinking models. The 200 floor in `test.sh` only confirms the proxy works at all; real prompts need much more headroom. |
-| `EAI_AGAIN getaddrinfo` in proxy log | DNS / outbound network blocked | Add `openrouter.ai` to Cowork Settings ▸ Capabilities ▸ Allowed domains |
+| `EAI_AGAIN getaddrinfo` in proxy log | DNS / outbound network blocked | Cowork: add `openrouter.ai` to Settings ▸ Capabilities ▸ Allowed domains. Claude Code: check the host's network/VPN |
 | `No allowed providers` upstream error | OpenRouter account doesn't have the provider for that model | Enable provider at https://openrouter.ai/settings/preferences, or pick a different slug |
 | `is not a valid model ID` | Stale slug | Run `list-models.sh <vendor>` and use a current one |
 | Hangs forever, no output | Proxy crashed or upstream hung | ask.sh auto-restarts a dead proxy and retries once; the 120s upstream timeout fires on hangs. Check `tail -20 $(ls -t $HOME/sidecar-ask.*.log \| head -1)` for the actual error |
 | Exit 137 (SIGKILL) | Cowork bash tool ceiling | Relaunch with `run_in_background: true` (read via TaskOutput), or chunk the work |
 | "tool not allowed" / sub-Claude can't run code | Read-only default | Rerun with `--full-tools` (or `SIDECAR_TOOLS=full`) |
+| "maximum context length is N tokens... of tool input" | Host has many MCP servers — their tool schemas alone can be 50k+ tokens, busting small-context models (mostly a Claude Code issue; Cowork sandboxes carry fewer tools) | Pick a bigger-context model (≥400k: `openai/gpt-5-nano`, `openai/gpt-4.1-nano`, Gemini) |
 
 **Don't mistake a slow call for a stuck one.** Reasoning + tool-use chains routinely take 60–120s. Wait for `MAX_RUN_SECONDS` before declaring it stuck.
 

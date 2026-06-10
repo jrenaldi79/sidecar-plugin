@@ -1,6 +1,6 @@
 {
   "name": "sidecar",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Call any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent. Runs a vendored local proxy that translates Anthropic API <-> OpenAI chat-completions format, so claude -p can route to non-Anthropic models cleanly. Fork & Fold features: per-call model override, parallel multi-model compare, session continuity (--continue), structured fold blocks, read-only subagents by default, and cost visibility (per-ask history, $/M pricing, credit check). Includes parent-conversation transcript access so subagents can self-pull context when relevant.",
   "author": {
     "name": "John Renaldi",

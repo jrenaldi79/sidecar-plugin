@@ -1,6 +1,6 @@
 # Sidecar
 
-Run any OpenRouter-hosted LLM as a Claude CLI subagent — inside any Claude Cowork session, through a thin format-translation proxy.
+Run any OpenRouter-hosted LLM as a Claude CLI subagent — in Claude Cowork or Claude Code, through a thin format-translation proxy.
 
 Sidecar gives you a `claude -p "..."` invocation that quietly routes to whichever upstream model you configure (Gemini, DeepSeek, Claude, GPT, anything OpenRouter serves). The Claude CLI thinks it's talking to Anthropic; the proxy translates to OpenAI chat-completions on the way out and back.
 
@@ -147,7 +147,7 @@ The translation layer is a patched [anthropic-proxy](https://github.com/maxnowac
 
 ## Things to know
 
-- **Per-user state lives in your mounted folder.** Scripts discover it via `_locate.sh` (a `sidecar-state/` or `.sidecar/` dir in whichever folder is connected to Cowork). `.env.local` holds your key — never share or commit it.
+- **Per-user state is auto-discovered.** In Cowork: a `sidecar-state/` (or legacy `.sidecar/`) dir in whichever folder is connected. In Claude Code on a host: `~/.sidecar-state/`. `SIDECAR_STATE_DIR` overrides both. `.env.local` holds your key — never share or commit it.
 - **The proxy process is per-bash-call.** Inside the sandbox, start it and use it within the same bash invocation; it doesn't outlive the call.
 - **Model identity is unreliable.** Ask a sidecar model "which model are you?" and it will often hallucinate Claude/GPT regardless of what's actually upstream. The authoritative source is the `[sidecar: <slug>]` line ask.sh prints first (taken from config, not from the model), or the proxy log.
 - **Subagents are read-only by default.** A third-party model drives the Claude CLI subagent, so Bash/Edit/Write are opt-in (`--full-tools`). Good default for reviews and second opinions; lift it deliberately when the task needs execution.

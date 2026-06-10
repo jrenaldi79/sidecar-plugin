@@ -87,9 +87,72 @@ test('_locate: first-run fallback skips outputs/uploads/dotdirs', () => {
   assert.equal(locate(env), path.join(home, 'mnt/RealFolder/sidecar-state'))
 })
 
-test('_locate: hard default when nothing mounted', () => {
+test('_locate: host mode — no $HOME/mnt falls back to ~/.sidecar-state', () => {
+  // Claude Code on a host has no Cowork mount layout at all.
   const { home, env } = makeEnv({ folders: [] })
+  fs.rmSync(path.join(home, 'mnt'), { recursive: true, force: true })
+  assert.equal(locate(env), path.join(home, '.sidecar-state'))
+})
+
+test('_locate: host mode — existing ~/.sidecar-state with .env.local is found', () => {
+  const { home, env } = makeEnv({ folders: [] })
+  fs.rmSync(path.join(home, 'mnt'), { recursive: true, force: true })
+  fs.mkdirSync(path.join(home, '.sidecar-state'))
+  fs.writeFileSync(path.join(home, '.sidecar-state/.env.local'), 'x=1\n')
+  assert.equal(locate(env), path.join(home, '.sidecar-state'))
+})
+
+test('_locate: Cowork mnt state wins over host ~/.sidecar-state when both exist', () => {
+  const { home, env } = makeEnv()
+  fs.mkdirSync(path.join(home, 'mnt/MyFolder/sidecar-state'), { recursive: true })
+  fs.writeFileSync(path.join(home, 'mnt/MyFolder/sidecar-state/.env.local'), 'x=1\n')
+  fs.mkdirSync(path.join(home, '.sidecar-state'))
+  fs.writeFileSync(path.join(home, '.sidecar-state/.env.local'), 'x=1\n')
+  assert.equal(locate(env), path.join(home, 'mnt/MyFolder/sidecar-state'))
+})
+
+test('_locate: hard default when mnt exists but holds only system folders', () => {
+  // Cowork-shaped env with nothing usable — keep the legacy hard default.
+  const { home, env } = makeEnv({ folders: ['outputs', 'uploads'] })
   assert.equal(locate(env), path.join(home, 'mnt/ClaudeCowork/sidecar-state'))
+})
+
+// find-transcript: Cowork bind-mount first, host ~/.claude/projects second.
+// Must use only BSD-compatible find (the GNU -printf form silently failed
+// on macOS hosts).
+const findTranscript = (env, ...args) =>
+  run('bash', [path.join(SCRIPTS, 'find-transcript.sh'), ...args], env)
+
+test('find-transcript: host mode — resolves ~/.claude/projects and newest jsonl', () => {
+  const { home, env } = makeEnv({ folders: [] })
+  fs.rmSync(path.join(home, 'mnt'), { recursive: true, force: true })
+  const proj = path.join(home, '.claude/projects/-some-project')
+  fs.mkdirSync(proj, { recursive: true })
+  const past = new Date(Date.now() - 60_000)
+  fs.writeFileSync(path.join(proj, 'older.jsonl'), '{}\n')
+  fs.utimesSync(path.join(proj, 'older.jsonl'), past, past)
+  fs.writeFileSync(path.join(proj, 'newer.jsonl'), '{}\n')
+  assert.equal(findTranscript(env, '--dir').stdout.trim(), path.join(home, '.claude/projects'))
+  assert.equal(findTranscript(env).stdout.trim(), path.join(proj, 'newer.jsonl'))
+})
+
+test('find-transcript: Cowork bind mount preferred over host dir', () => {
+  const { home, env } = makeEnv({ folders: [] })
+  const cowork = path.join(home, 'mnt/.claude/projects/p1')
+  const host = path.join(home, '.claude/projects/p2')
+  fs.mkdirSync(cowork, { recursive: true })
+  fs.mkdirSync(host, { recursive: true })
+  fs.writeFileSync(path.join(cowork, 'a.jsonl'), '{}\n')
+  fs.writeFileSync(path.join(host, 'b.jsonl'), '{}\n')
+  assert.equal(findTranscript(env, '--dir').stdout.trim(), path.join(home, 'mnt/.claude/projects'))
+  assert.equal(findTranscript(env).stdout.trim(), path.join(cowork, 'a.jsonl'))
+})
+
+test('find-transcript: exits 1 with guidance when neither location exists', () => {
+  const { home, env } = makeEnv({ folders: [] })
+  fs.rmSync(path.join(home, 'mnt'), { recursive: true, force: true })
+  const r = findTranscript(env)
+  assert.equal(r.code, 1)
 })
 
 // Proxy-entry resolution: bundle.cjs preferred, bundle-min.cjs fallback
