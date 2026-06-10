@@ -51,7 +51,14 @@ export async function startProxy({ upstreamUrl, env = {} }) {
   let logs = ''
   proc.stdout.on('data', d => { logs += d })
   proc.stderr.on('data', d => { logs += d })
-  await waitForListen(port)
+  // Fail fast with the child's own output if it dies before listening —
+  // otherwise a bad entry/stale bundle burns the full poll timeout opaquely.
+  const exited = new Promise((_, reject) => {
+    proc.once('exit', code =>
+      reject(new Error(`proxy exited (code ${code}) before listening:\n${logs}`)))
+  })
+  await Promise.race([waitForListen(port), exited])
+  exited.catch(() => {})  // defuse: the same rejection fires later on stop()
   return {
     port,
     url: `http://127.0.0.1:${port}`,
