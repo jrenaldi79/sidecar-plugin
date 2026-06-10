@@ -14,6 +14,8 @@
 //        only on the streaming path; non-streaming truncates them.
 //   P1 — try/catch around JSON.parse of tool_call arguments (line ~209)
 //   P2 — AbortSignal.timeout(120000) on the upstream fetch
+//   P3 — style-aware tool-arg accumulator: handles both cumulative deltas
+//        (Gemini) and incremental fragments (OpenAI) in the streaming path
 //
 // Bugs B1-B4 reported by John Renaldi 2026-04-29; P1 P2 added preventively.
 
@@ -448,8 +450,22 @@ fastify.post('/v1/messages', async (request, reply) => {
               }
               const newArgs = toolCall.function.arguments || ""
               const oldArgs = toolCallAccumulators[idx]
-              if (newArgs.length > oldArgs.length) {
-                const deltaText = newArgs.substring(oldArgs.length)
+              // PATCH P3 — providers stream arguments in two styles: cumulative
+              // (each delta repeats the full string so far — Gemini) and
+              // incremental fragments (each delta is only the new piece —
+              // OpenAI). The old suffix-only logic corrupted or dropped
+              // incremental fragments. startsWith distinguishes them: a
+              // cumulative delta always extends the accumulator; a fragment
+              // (that isn't a pure extension) gets appended verbatim.
+              let deltaText
+              if (newArgs.startsWith(oldArgs)) {
+                deltaText = newArgs.substring(oldArgs.length)
+                toolCallAccumulators[idx] = newArgs
+              } else {
+                deltaText = newArgs
+                toolCallAccumulators[idx] = oldArgs + newArgs
+              }
+              if (deltaText) {
                 sendSSE(reply, 'content_block_delta', {
                   type: 'content_block_delta',
                   index: idx,
@@ -458,7 +474,6 @@ fastify.post('/v1/messages', async (request, reply) => {
                     partial_json: deltaText
                   }
                 })
-                toolCallAccumulators[idx] = newArgs
               }
             }
           } else if (delta && delta.content) {

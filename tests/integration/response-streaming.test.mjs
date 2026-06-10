@@ -71,6 +71,19 @@ test('parallel tool calls keep distinct indices and each gets content_block_stop
   assert.deepEqual(stops, [0, 1])
 })
 
+test('P3: incremental-fragment tool-call arguments (real OpenAI style) reassemble correctly', async () => {
+  fake.respondWith(sseResponder([
+    sseDelta({ tool_calls: [{ index: 0, id: 'call_p3', function: { name: 'calc', arguments: '{"ex' } }] }),
+    sseDelta({ tool_calls: [{ index: 0, function: { arguments: 'pr":"2+2"' } }] }),
+    sseDelta({ tool_calls: [{ index: 0, function: { arguments: '}' } }] }),
+    DONE,
+  ]))
+  const r = await postMessages(proxy.url, anthropicPayload({ stream: true }))
+  const events = parseSSE(r.text)
+  const parts = events.filter(e => e.event === 'content_block_delta').map(e => e.data.delta.partial_json)
+  assert.equal(parts.join(''), '{"expr":"2+2"}')
+})
+
 test('SSE data line split across two TCP chunks: B2 guard skips fragments, stream finishes', async () => {
   // The proxy splits per-chunk on \n; a line split mid-JSON across chunks is
   // skipped by the B2 guard (known limitation, documented here). A LATER
