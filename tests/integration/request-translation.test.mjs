@@ -148,3 +148,26 @@ test('B4: SIDECAR_STREAMING=false forces stream:false even when client asks to s
     assert.equal(fake2.lastRequest().body.stream, false)
   } finally { proxy2.stop(); await fake2.close() }
 })
+
+test('E1: SIDECAR_REASONING_EFFORT forwards OpenRouter reasoning param', async () => {
+  const fake2 = await startFakeOpenRouter()
+  const proxy2 = await startProxy({ upstreamUrl: fake2.url, env: { SIDECAR_REASONING_EFFORT: 'high' } })
+  try {
+    await postMessages(proxy2.url, anthropicPayload())
+    assert.deepEqual(fake2.lastRequest().body.reasoning, { effort: 'high' })
+  } finally { proxy2.stop(); await fake2.close() }
+})
+
+test('E1: no reasoning param when SIDECAR_REASONING_EFFORT unset (upstream default)', async () => {
+  await postMessages(proxy.url, anthropicPayload())
+  assert.equal('reasoning' in fake.lastRequest().body, false)
+})
+
+test('E1: invalid SIDECAR_REASONING_EFFORT value is ignored, not forwarded', async () => {
+  const fake2 = await startFakeOpenRouter()
+  const proxy2 = await startProxy({ upstreamUrl: fake2.url, env: { SIDECAR_REASONING_EFFORT: 'maximum' } })
+  try {
+    await postMessages(proxy2.url, anthropicPayload())
+    assert.equal('reasoning' in fake2.lastRequest().body, false)
+  } finally { proxy2.stop(); await fake2.close() }
+})

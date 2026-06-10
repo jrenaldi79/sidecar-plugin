@@ -185,6 +185,46 @@ test('set-model: unknown slug rejected by catalog check, file untouched', () => 
   assert.equal(fs.readFileSync(path.join(state, '.env.local'), 'utf8'), before)
 })
 
+// ---------- reasoning effort (E1): set-effort.sh + ask.sh --effort ----------
+
+test('set-effort: writes SIDECAR_REASONING_EFFORT, preserves other lines', () => {
+  const { home, env } = makeEnv()
+  const state = seededState(home)
+  const e = { ...env, SIDECAR_STATE_DIR: state }
+  const r = run('bash', [path.join(SCRIPTS, 'set-effort.sh'), 'high'], e)
+  assert.equal(r.code, 0, r.stderr)
+  const f = fs.readFileSync(path.join(state, '.env.local'), 'utf8')
+  assert.match(f, /^SIDECAR_REASONING_EFFORT="high"$/m)
+  assert.match(f, /^PORT=3000$/m)
+})
+
+test('set-effort: "default" clears the value back to upstream default', () => {
+  const { home, env } = makeEnv()
+  const state = seededState(home)
+  const e = { ...env, SIDECAR_STATE_DIR: state }
+  run('bash', [path.join(SCRIPTS, 'set-effort.sh'), 'low'], e)
+  const r = run('bash', [path.join(SCRIPTS, 'set-effort.sh'), 'default'], e)
+  assert.equal(r.code, 0, r.stderr)
+  assert.match(fs.readFileSync(path.join(state, '.env.local'), 'utf8'), /^SIDECAR_REASONING_EFFORT=""$/m)
+})
+
+test('set-effort: rejects unknown levels, file untouched', () => {
+  const { home, env } = makeEnv()
+  const state = seededState(home)
+  const before = fs.readFileSync(path.join(state, '.env.local'), 'utf8')
+  const r = run('bash', [path.join(SCRIPTS, 'set-effort.sh'), 'maximum'], { ...env, SIDECAR_STATE_DIR: state })
+  assert.equal(r.code, 2)
+  assert.equal(fs.readFileSync(path.join(state, '.env.local'), 'utf8'), before)
+})
+
+test('ask: --effort rejects invalid levels with exit 2 before doing any work', () => {
+  const { home, env } = makeEnv()
+  const state = seededState(home)
+  const r = run('bash', [path.join(SCRIPTS, 'ask.sh'), '--effort', 'banana', 'hi'], { ...env, SIDECAR_STATE_DIR: state })
+  assert.equal(r.code, 2)
+  assert.match(r.stderr, /--effort/)
+})
+
 test('setup: idempotent — second run exits 0 and preserves an edited .env.local', () => {
   const { home, env } = makeEnv()
   const state = path.join(home, 'mnt/MyFolder/sidecar-state')

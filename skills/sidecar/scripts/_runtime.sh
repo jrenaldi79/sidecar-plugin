@@ -96,3 +96,41 @@ resolve_model() {
   fi
   printf '%s\n' "$line" | cut -d= -f2- | tr -d '"'
 }
+
+# diagnose_ask_failure <rc> <proxy-log> <sub-claude-stderr>
+# Exit-code-specific guidance + log tails after a failed sub-Claude run,
+# all to stderr. Reads MAX_RUN_SECONDS from the caller's environment.
+diagnose_ask_failure() {
+  local rc="$1" log="$2" sub_err="$3"
+  echo "" >&2
+  case "$rc" in
+    124)
+      echo "ask.sh: sub-Claude hit MAX_RUN_SECONDS=${MAX_RUN_SECONDS:-180}s timeout." >&2
+      echo "       To extend: MAX_RUN_SECONDS=300 bash ask.sh \"<prompt>\"" >&2
+      echo "       (If invoked from a Cowork bash tool, that tool's own 45s ceiling" >&2
+      echo "        applies regardless — use run_in_background or a terminal.)" >&2
+      ;;
+    137)
+      echo "ask.sh: sub-Claude was killed (SIGKILL) — likely the bash tool's own ceiling." >&2
+      ;;
+    *)
+      echo "ask.sh: sub-Claude exited $rc." >&2
+      ;;
+  esac
+  echo "" >&2
+  echo "Proxy log tail (looking for upstream errors / hangs):" >&2
+  tail -10 "$log" >&2
+  if [ -s "$sub_err" ]; then
+    echo "" >&2
+    echo "Sub-Claude stderr tail:" >&2
+    tail -10 "$sub_err" >&2
+  fi
+  echo "" >&2
+  echo "Common fixes:" >&2
+  echo "  • Long reasoning chain → MAX_RUN_SECONDS=300 …" >&2
+  echo "  • Empty/null upstream    → check OPENROUTER_API_KEY + allow-list (Settings ▸ Capabilities)" >&2
+  echo "  • Unknown model          → bash <SKILL>/scripts/list-models.sh <vendor>" >&2
+  echo "  • Stale vendor alias     → bash <SKILL>/scripts/refresh-defaults.sh <vendor> <slug>" >&2
+  echo "  • Needs Bash/Edit/Write  → rerun with --full-tools" >&2
+  echo "  • Hung mid-call          → SIDECAR_VERBOSE=1 bash ask.sh \"…\" to see live progress" >&2
+}

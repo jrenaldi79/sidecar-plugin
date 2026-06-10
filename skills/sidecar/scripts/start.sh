@@ -6,6 +6,8 @@
 #   SIDECAR_PORT_OVERRIDE        — listen port for this proxy instance
 #   SIDECAR_COMPLETION_OVERRIDE  — upstream model for this instance
 #   SIDECAR_REASONING_OVERRIDE   — reasoning model for this instance
+#   SIDECAR_EFFORT_OVERRIDE      — reasoning effort (low|medium|high) for
+#                                  this instance (ask.sh --effort)
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -35,6 +37,9 @@ if [ -n "${SIDECAR_COMPLETION_OVERRIDE:-}" ]; then
 fi
 if [ -n "${SIDECAR_REASONING_OVERRIDE:-}" ]; then
   export REASONING_MODEL="$SIDECAR_REASONING_OVERRIDE"
+fi
+if [ -n "${SIDECAR_EFFORT_OVERRIDE:-}" ]; then
+  export SIDECAR_REASONING_EFFORT="$SIDECAR_EFFORT_OVERRIDE"
 fi
 
 if [ ! -f "$PROXY_ENTRY" ]; then

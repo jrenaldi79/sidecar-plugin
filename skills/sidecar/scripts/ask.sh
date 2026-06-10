@@ -5,6 +5,9 @@
 #
 # Flags:
 #   --model <slug|vendor>  per-call override: full slug or a vendor word
+#   --effort <level>       per-call reasoning effort: low|medium|high
+#                          (unset = provider default; reasoning tokens bill
+#                          as output tokens, so this is the main cost lever)
 #                          resolved via <state>/defaults.env; never mutates .env.local
 #   --continue             resume the most recent sidecar session (same Cowork
 #                          session only; same model unless --model also given)
@@ -49,6 +52,13 @@ EXTRA_DIRS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --model)      MODEL_ARG="${2:?ask.sh: --model needs a slug or vendor word}"; shift 2 ;;
+    --effort)
+      EFFORT_ARG="${2:?ask.sh: --effort needs low|medium|high}"
+      case "$EFFORT_ARG" in
+        low|medium|high) export SIDECAR_EFFORT_OVERRIDE="$EFFORT_ARG" ;;
+        *) echo "ask.sh: --effort expects low|medium|high, got '$EFFORT_ARG'" >&2; exit 2 ;;
+      esac
+      shift 2 ;;
     --continue)   CONTINUE=1; shift ;;
     --fold)       FOLD=1; shift ;;
     --full-tools) TOOLS_MODE="full"; shift ;;
@@ -264,37 +274,8 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
   >> "$SIDECAR_STATE_DIR/history.log" 2>/dev/null || true
 
 # ---------------- failure diagnosis ----------------
+# diagnose_ask_failure lives in _runtime.sh (sourced above).
 if [ "$RC" -ne 0 ]; then
-  echo "" >&2
-  case "$RC" in
-    124)
-      echo "ask.sh: sub-Claude hit MAX_RUN_SECONDS=${MAX_RUN_SECONDS}s timeout." >&2
-      echo "       To extend: MAX_RUN_SECONDS=300 bash ask.sh \"<prompt>\"" >&2
-      echo "       (If invoked from a Cowork bash tool, that tool's own 45s ceiling" >&2
-      echo "        applies regardless — use run_in_background or a terminal.)" >&2
-      ;;
-    137)
-      echo "ask.sh: sub-Claude was killed (SIGKILL) — likely the bash tool's own ceiling." >&2
-      ;;
-    *)
-      echo "ask.sh: sub-Claude exited $RC." >&2
-      ;;
-  esac
-  echo "" >&2
-  echo "Proxy log tail (looking for upstream errors / hangs):" >&2
-  tail -10 "$LOG" >&2
-  if [ -s "$SUB_ERR" ]; then
-    echo "" >&2
-    echo "Sub-Claude stderr tail:" >&2
-    tail -10 "$SUB_ERR" >&2
-  fi
-  echo "" >&2
-  echo "Common fixes:" >&2
-  echo "  • Long reasoning chain → MAX_RUN_SECONDS=300 …" >&2
-  echo "  • Empty/null upstream    → check OPENROUTER_API_KEY + allow-list (Settings ▸ Capabilities)" >&2
-  echo "  • Unknown model          → bash <SKILL>/scripts/list-models.sh <vendor>" >&2
-  echo "  • Stale vendor alias     → bash <SKILL>/scripts/refresh-defaults.sh <vendor> <slug>" >&2
-  echo "  • Needs Bash/Edit/Write  → rerun with --full-tools" >&2
-  echo "  • Hung mid-call          → SIDECAR_VERBOSE=1 bash ask.sh \"…\" to see live progress" >&2
+  diagnose_ask_failure "$RC" "$LOG" "$SUB_ERR"
 fi
 exit "$RC"

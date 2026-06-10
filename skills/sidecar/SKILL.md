@@ -99,10 +99,11 @@ bash <SKILL_DIR>/scripts/setup.sh
 
 # (3) Render the elicitation form (mcp__visualize__show_widget). Collect:
 #     - api_key:        sk-or-...
-#     - default_model:  one of the six slugs in the cards table below
-#     CLAUDE CODE: no visualize tools — AskUserQuestion for the model pick
-#     (max 4 options: use the first four cards, name the other two in the
-#     question text), and ask the user to paste the key in chat.
+#     - default_model:     one of the eight slugs in the cards table below
+#     - reasoning_effort:  default | low | medium | high
+#     CLAUDE CODE: no visualize tools — AskUserQuestion (one question per
+#     pick; max 4 options each: first four model cards as options, name the
+#     rest in the question text), and ask the user to paste the key in chat.
 
 # (4) Write the key (NEVER use Edit/Write on .env.local — see virtiofs note):
 echo "<api-key-from-form>" | bash <SKILL_DIR>/scripts/set-key.sh
@@ -136,29 +137,41 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
 
    ⚠️ **Sidecar exists to get adversarial, second-opinion reviews from models *other than* the parent Claude. Do NOT offer an Anthropic/Claude model as a setup option, and never default to one — an Anthropic default defeats the entire purpose.** The user can still explicitly switch to Claude later (see "Switch default model"); just don't surface it during setup.
 
-   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, or any other model not in the table below. Use the six slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
+   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, or any other model not in the table below. Use the eight slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
 
    **Steps:**
 
    1. Call `mcp__visualize__read_me` with `modules: ["elicitation"]` to load the form-styling guide.
    2. Call `mcp__visualize__show_widget` with an elicitation form that has:
       - A `<textarea>` (monospace, `data-name="api_key"`) for the OpenRouter API key (pointing the user at https://openrouter.ai/keys).
-      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with **EXACTLY THESE SIX CARDS, IN ORDER, AND NO OTHERS**. Include the price in each card's description — cost is part of the decision (prices are $/M tokens in/out, June 2026 snapshot):
+      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with **EXACTLY THESE EIGHT CARDS, IN ORDER, AND NO OTHERS**. Include the price in each card's description — cost is part of the decision (prices are $/M tokens in/out, June 2026 snapshot):
 
         | Card label | One-line description | `data-value` slug (use verbatim) |
         |---|---|---|
         | Gemini 3.5 Flash | Newest Gemini — fast, balanced, good value ($1.50 / $9) | `google/gemini-3.5-flash` |
         | GPT-5.4 | Near-flagship OpenAI at half the price of 5.5 ($2.50 / $15) | `openai/gpt-5.4` |
         | DeepSeek V4 Flash | Budget pick — solid code & reasoning ($0.10 / $0.20) | `deepseek/deepseek-v4-flash` |
+        | DeepSeek V4 Pro | Step up from Flash, still very cheap ($0.43 / $0.87) | `deepseek/deepseek-v4-pro` |
+        | Kimi 2.6 | Moonshot's flagship — strong on agentic coding ($0.68 / $3.41) | `moonshotai/kimi-k2.6` |
         | Grok 4.3 | xAI's flagship — independent vendor, cheap output ($1.25 / $2.50) | `x-ai/grok-4.3` |
         | Gemini 3.1 Pro | Strongest Gemini reasoning, long context ($2 / $12) | `google/gemini-3.1-pro-preview` |
         | GPT-5.5 | OpenAI's flagship — premium price ($5 / $30) | `openai/gpt-5.5` |
 
+      - A second `.elicit-pills` group (`data-name="reasoning_effort"`, `data-multi="false"`) with these four options — note under the group: "Reasoning tokens bill at the output rate; effort is the main cost lever."
+
+        | Card label | One-line description | `data-value` |
+        |---|---|---|
+        | Provider default | Let each model decide (recommended start) | `default` |
+        | Low | Cheapest and fastest — fine for summaries and quick opinions | `low` |
+        | Medium | Balanced | `medium` |
+        | High | Deepest reasoning — most expensive, for hard reviews | `high` |
+
    3. Parse the submitted form. Then:
       - Write the key via `bash <SKILL_DIR>/scripts/set-key.sh` (pipe the key through stdin: `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh`). **Never** use the Edit/Write tools on `.env.local` — virtiofs/OneDrive backed mounts (Windows hosts) silently drop those edits. Always inject via bash redirect.
       - Set the model with `bash <SKILL_DIR>/scripts/set-model.sh <slug>` (validates against the live catalog).
+      - If `reasoning_effort` is anything other than `default`, set it with `bash <SKILL_DIR>/scripts/set-effort.sh <level>` (chain with set-model in one bash call). `default` needs no action.
 
-4. **Only fall back from the six slugs above if `set-model.sh` actually rejects them as 404.** Don't pre-emptively "verify" against your own model knowledge — those six slugs are validated and current. The check that matters is `set-model.sh` calling OpenRouter's catalog. If (and only if) it returns "Unknown slug", run `bash <SKILL_DIR>/scripts/list-models.sh <vendor>` and pick the most recent match — and tell the user which slug you substituted and why.
+4. **Only fall back from the eight slugs above if `set-model.sh` actually rejects them as 404.** Don't pre-emptively "verify" against your own model knowledge — those eight slugs are validated and current. The check that matters is `set-model.sh` calling OpenRouter's catalog. If (and only if) it returns "Unknown slug", run `bash <SKILL_DIR>/scripts/list-models.sh <vendor>` and pick the most recent match — and tell the user which slug you substituted and why.
 
 5. **Verify.**
    ```bash
@@ -229,6 +242,7 @@ echo "<the user's prompt verbatim>" | bash <SKILL_DIR>/scripts/ask.sh --model ge
 
 Other flags (combine freely):
 
+- `--effort low|medium|high` — per-call reasoning effort. Reasoning tokens bill at the model's OUTPUT rate, so effort is the main cost lever after model choice: `low` for summaries and quick opinions, `high` for hard adversarial reviews. Omit for the configured/provider default; change the persistent default with `set-effort.sh`.
 - `--fold` — sub-Claude ends with a structured fold block (answer / key evidence / confidence / sources consulted). Use when you'll integrate the answer into further work rather than just relaying it.
 - `--full-tools` — **sub-Claude is read-only (Read/Grep/Glob) by default.** Add this when the ask requires running code or writing files ("have DeepSeek fix this", "run the tests"); leave it off for opinions, reviews, and summaries.
 - `--add-dir <path>` — extra readable directory (e.g. the user's project folder for "have GPT review this repo").
@@ -312,6 +326,15 @@ bash <SKILL_DIR>/scripts/set-model.sh x-ai/grok-4.3
 ```
 
 (For a one-off model choice, prefer `ask.sh --model` — it doesn't touch the default.)
+
+### Set default reasoning effort ("make sidecar think harder/cheaper")
+
+```bash
+bash <SKILL_DIR>/scripts/set-effort.sh low|medium|high   # persistent default
+bash <SKILL_DIR>/scripts/set-effort.sh default           # back to provider default
+```
+
+(For one call only, prefer `ask.sh --effort <level>`.)
 
 ### Refresh a stale vendor alias ("gemini slug 404s")
 

@@ -244,6 +244,13 @@ fastify.post('/v1/messages', async (request, reply) => {
       // so for thinking models default-on is required to surface visible
       // output at all when max_tokens is tight.
       stream: process.env.SIDECAR_STREAMING === 'false' ? false : (payload.stream === true),
+      // PATCH E1 — optional reasoning-effort control. OpenRouter normalizes
+      // `reasoning.effort` across vendors; reasoning tokens bill as OUTPUT
+      // tokens, so this is the biggest per-call cost lever after model
+      // choice. Unset (or invalid) = omit the param = each provider's
+      // default, the pre-E1 behavior.
+      ...(['low', 'medium', 'high'].includes(process.env.SIDECAR_REASONING_EFFORT)
+        ? { reasoning: { effort: process.env.SIDECAR_REASONING_EFFORT } } : {}),
     }
     if (tools.length > 0) openaiPayload.tools = tools
     debug('OpenAI payload:', openaiPayload)

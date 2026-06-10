@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0 — 2026-06-10 "Reasoning Effort"
+
+Users can now control reasoning effort — the biggest per-call cost lever
+after model choice (reasoning tokens bill at the OUTPUT rate).
+
+### Added
+- **Proxy PATCH E1**: when `SIDECAR_REASONING_EFFORT` is `low`/`medium`/`high`,
+  the proxy forwards OpenRouter's vendor-normalized `reasoning: { effort }`
+  param. Unset or invalid = omitted = each provider's default (the previous
+  behavior, now locked by regression tests). Both bundles rebuilt.
+- **`set-effort.sh`** — persistent default in `.env.local`
+  (`low|medium|high|default`), same virtiofs-safe write pattern as set-key.sh.
+- **`ask.sh --effort low|medium|high`** — per-call override via
+  `SIDECAR_EFFORT_OVERRIDE` (applied by start.sh after `.env.local`, like the
+  model overrides). Also works for compare.sh via the exported env var.
+- **Setup asks for effort**: the elicitation form gains a reasoning-effort
+  pick (provider default preselected); SKILL.md guides per-task choice
+  (low for summaries, high for deep adversarial reviews).
+
+### Changed
+- Setup model cards: 6 → 8 — added `deepseek/deepseek-v4-pro` ($0.43/$0.87)
+  and `moonshotai/kimi-k2.6` ($0.68/$3.41), both live-catalog verified.
+
 ## 0.4.1 — 2026-06-10 "Cost-Aware Setup"
 
 Setup now shows prices and leads with cost-effective picks (all pricing
