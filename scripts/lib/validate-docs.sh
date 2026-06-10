@@ -12,15 +12,15 @@ DOC="$ROOT/CLAUDE.md"
 if [ "${1:-}" = "--full" ]; then
   [ -f "$DOC" ] || { echo "FAIL: CLAUDE.md missing" >&2; exit 1; }
   DRIFT=0
-  # Every path-looking token in the Directory Structure code block must exist.
+  # Every path in the AUTO:tree block's first column must exist on disk.
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     if [ ! -e "$ROOT/$path" ]; then
       echo "DRIFT: CLAUDE.md mentions '$path' but it does not exist" >&2
       DRIFT=1
     fi
-  done < <(awk '/^## Directory Structure/,/^## [^D]/' "$DOC" \
-            | grep -oE '[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+\.[a-z]+' | sort -u)
+  done < <(awk '/<!-- AUTO:tree -->/,/<!-- \/AUTO:tree -->/' "$DOC" \
+            | awk '$1 ~ /\// && $1 !~ /^(<|`)/ {print $1}' | sort -u)
   exit "$DRIFT"
 fi
 
