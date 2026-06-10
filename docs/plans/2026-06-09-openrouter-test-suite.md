@@ -718,7 +718,8 @@ Expected: PASS in ~1–2s.
 **Step 5: Commit**
 
 ```bash
-git add skills/sidecar/proxy/anthropic-proxy-patched.mjs skills/sidecar/proxy/bundle.cjs tests/integration/error-resilience.test.mjs
+git add skills/sidecar/proxy/anthropic-proxy-patched.mjs tests/integration/error-resilience.test.mjs
+# NOTE: bundle.cjs is gitignored by design — rebuild locally with build.sh, never commit it.
 git commit -m "feat: make upstream timeout configurable via SIDECAR_UPSTREAM_TIMEOUT_MS + test"
 ```
 
