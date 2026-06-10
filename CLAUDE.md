@@ -106,6 +106,7 @@ tests/integration/fork-fold-scripts.test.mjs       # integration locks for the 0
 tests/integration/request-translation.test.mjs     # regression locks for Anthropic -> OpenAI
 tests/integration/response-nonstreaming.test.mjs
 tests/integration/response-streaming.test.mjs
+tests/integration/scripts.test.mjs
 tests/run-integration.sh                           # Tier 1: mock-based integration tests. No network, no key.
 ```
 <!-- /AUTO:tree -->
