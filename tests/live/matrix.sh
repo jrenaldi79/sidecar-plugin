@@ -14,7 +14,8 @@ BUNDLE="$REPO/skills/sidecar/proxy/bundle.cjs"
 
 # Never orphan a proxy on Ctrl-C or early exit.
 PROXY_PID=""
-trap 'kill "$PROXY_PID" 2>/dev/null' EXIT
+# wait after kill reaps the job so bash doesn't print "Terminated: 15" noise.
+trap 'kill "$PROXY_PID" 2>/dev/null; wait "$PROXY_PID" 2>/dev/null' EXIT
 
 # Pick a writable directory for proxy logs (probe via [ -w ] — Cowork
 # sandboxes lock down /tmp; same pattern as scripts/test.sh).
