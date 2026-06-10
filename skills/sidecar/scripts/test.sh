@@ -68,16 +68,16 @@ fi
 
 echo
 echo "=== curl probe ==="
-# max_tokens=200, not 20: reasoning models (Gemini 3.1 Pro Preview, GPT-5.5, etc.)
-# burn 80-90 tokens of internal chain-of-thought BEFORE emitting any visible
-# text. With a budget below ~100, the model hits max_tokens during reasoning
-# and returns content:null with stop_reason:max_tokens. The proxy's PATCH B3
-# correctly produces content:[] in that case — but the test then misreads the
-# empty content as a proxy bug. 200 gives a safe margin for any current model.
+# max_tokens=2000, not 20: reasoning models burn internal chain-of-thought
+# BEFORE emitting any visible text — measured live (2026-06-10): Gemini 3.5
+# Flash spends 180-450 reasoning tokens even on trivial prompts, so the old
+# 200 budget made this check flaky (content:null with stop_reason:max_tokens;
+# the proxy's PATCH B3 correctly produces content:[], which the test then
+# misreads as a proxy bug). 2000 gives margin for any current default model.
 RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  -d '{"model":"client-sent-anything","max_tokens":200,"messages":[{"role":"user","content":"say ok"}]}')
+  -d '{"model":"client-sent-anything","max_tokens":2000,"messages":[{"role":"user","content":"say ok"}]}')
 UPSTREAM=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('model','?'))" 2>/dev/null || echo "?")
 TEXT=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('content',[{}])[0].get('text','?'))" 2>/dev/null || echo "?")
 note "upstream model: $UPSTREAM"
@@ -91,18 +91,26 @@ fi
 
 echo
 echo "=== claude CLI through proxy ==="
+# timeout(1) is GNU coreutils — absent on stock macOS (brew installs it as
+# gtimeout). Same fallback chain as ask.sh: timeout > gtimeout > unguarded.
+# A bare `timeout` here made this check fail with "command not found" on
+# macOS hosts without coreutils — claude never even ran (hit 2026-06-10).
+TIMEOUT_CMD=()
+for t in timeout gtimeout; do
+  command -v "$t" >/dev/null 2>&1 && { TIMEOUT_CMD=( "$t" --foreground 60 ); break; }
+done
 CLI_OUT=$(ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" ANTHROPIC_AUTH_TOKEN="" \
-  timeout 25 claude -p "Reply with one short sentence containing the word 'pong'." </dev/null 2>&1)
+  ${TIMEOUT_CMD[@]+"${TIMEOUT_CMD[@]}"} claude -p "Reply with one short sentence containing the word 'pong'." </dev/null 2>&1)
 note "CLI output: $CLI_OUT"
 echo "$CLI_OUT" | grep -qi pong && pass "claude CLI produced expected output" || fail "claude CLI output missing 'pong'"
 
 echo
 echo "=== second request after first (catches Bug B1 — proxy must survive) ==="
-# max_tokens=200 same reasoning as the first probe — reasoning models need
+# max_tokens=2000 same reasoning as the first probe — reasoning models need
 # headroom past their internal chain-of-thought before visible content lands.
 RESP2=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
-  -d '{"model":"x","max_tokens":200,"messages":[{"role":"user","content":"reply with one word"}]}')
+  -d '{"model":"x","max_tokens":2000,"messages":[{"role":"user","content":"reply with one word"}]}')
 TEXT2=$(echo "$RESP2" | python3 -c "import json,sys; print(json.load(sys.stdin).get('content',[{}])[0].get('text','?'))" 2>/dev/null || echo "?")
 note "second-call text: $TEXT2"
 [ -n "$TEXT2" ] && [ "$TEXT2" != "?" ] && pass "proxy answered a second request" || fail "second request failed (B1 regression?)"
@@ -117,7 +125,7 @@ TOOL_RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
   -d '{
     "model": "x",
-    "max_tokens": 200,
+    "max_tokens": 2000,
     "messages": [
       {"role": "user", "content": "What is 2+2?"},
       {"role": "assistant", "content": [
@@ -144,7 +152,7 @@ MIXED_RESP=$(curl -sS "http://127.0.0.1:$PORT/v1/messages" \
   -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
   -d '{
     "model": "x",
-    "max_tokens": 200,
+    "max_tokens": 2000,
     "messages": [
       {"role": "user", "content": "What files are in /tmp?"},
       {"role": "assistant", "content": [

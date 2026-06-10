@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.2 — 2026-06-10
+
+Fixes the two `test.sh` failures every macOS install hit (diagnosed while
+verifying 0.5.0; both pre-dated it):
+
+- **pong check: `timeout: command not found` on stock macOS** — the claude
+  CLI check used bare `timeout(1)` (GNU coreutils), so on Macs without brew
+  coreutils the check failed before claude even ran. Now uses ask.sh's
+  fallback chain (timeout → gtimeout → unguarded) with a 60s budget.
+- **Thinking-model probes were flaky at `max_tokens: 200`** — measured live:
+  Gemini 3.5 Flash burns 180-450 reasoning tokens before visible text, so
+  probes intermittently returned empty content. All four probes now use
+  2000.
+
+`test.sh` is 11/11 on a macOS host with the gemini-3.5-flash default.
+
 ## 0.5.1 — 2026-06-10
 
 - **Effort levels live-verified against OpenRouter** (direct API, 2 models ×
