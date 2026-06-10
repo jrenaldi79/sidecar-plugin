@@ -87,6 +87,7 @@ skills/sidecar/proxy/wrapper.mjs                   # proxy-aware entry point for
 skills/sidecar/scripts/_locate.sh                  # sourced by Sidecar scripts.
 skills/sidecar/scripts/_runtime.sh                 # sourced helpers shared by ask.sh and compare.sh.
 skills/sidecar/scripts/ask.sh                      # send one prompt to an OpenRouter model as a Claude CLI subagent.
+skills/sidecar/scripts/compare.sh                  # fork one prompt to several models in parallel, print labeled results.
 skills/sidecar/scripts/find-transcript.sh          # locate the parent Cowork session's JSONL transcript.
 skills/sidecar/scripts/list-models.sh              # fetch the live OpenRouter model catalog, optionally filtered.
 skills/sidecar/scripts/refresh-defaults.sh         # view or update the vendor → model alias map that
