@@ -99,9 +99,10 @@ bash <SKILL_DIR>/scripts/setup.sh
 
 # (3) Render the elicitation form (mcp__visualize__show_widget). Collect:
 #     - api_key:        sk-or-...
-#     - default_model:  one of the four slugs in the cards table below
+#     - default_model:  one of the six slugs in the cards table below
 #     CLAUDE CODE: no visualize tools — AskUserQuestion for the model pick
-#     (same four options), and ask the user to paste the key in chat.
+#     (max 4 options: use the first four cards, name the other two in the
+#     question text), and ask the user to paste the key in chat.
 
 # (4) Write the key (NEVER use Edit/Write on .env.local — see virtiofs note):
 echo "<api-key-from-form>" | bash <SKILL_DIR>/scripts/set-key.sh
@@ -135,27 +136,29 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
 
    ⚠️ **Sidecar exists to get adversarial, second-opinion reviews from models *other than* the parent Claude. Do NOT offer an Anthropic/Claude model as a setup option, and never default to one — an Anthropic default defeats the entire purpose.** The user can still explicitly switch to Claude later (see "Switch default model"); just don't surface it during setup.
 
-   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, or any other model not in the table below. Use the four slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
+   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, or any other model not in the table below. Use the six slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
 
    **Steps:**
 
    1. Call `mcp__visualize__read_me` with `modules: ["elicitation"]` to load the form-styling guide.
    2. Call `mcp__visualize__show_widget` with an elicitation form that has:
       - A `<textarea>` (monospace, `data-name="api_key"`) for the OpenRouter API key (pointing the user at https://openrouter.ai/keys).
-      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with **EXACTLY THESE FOUR CARDS, IN ORDER, AND NO OTHERS**:
+      - A card-style `.elicit-pills` group (`data-name="default_model"`, `data-multi="false"`) with **EXACTLY THESE SIX CARDS, IN ORDER, AND NO OTHERS**. Include the price in each card's description — cost is part of the decision (prices are $/M tokens in/out, June 2026 snapshot):
 
         | Card label | One-line description | `data-value` slug (use verbatim) |
         |---|---|---|
-        | Gemini 3.1 Pro | Google's latest reasoning preview — strong on long context | `google/gemini-3.1-pro-preview` |
-        | GPT-5.5 | OpenAI's current default — balanced speed and quality | `openai/gpt-5.5` |
-        | DeepSeek V4 Flash | Cheap, fast, solid on code & reasoning | `deepseek/deepseek-v4-flash` |
-        | Grok 4.3 | xAI's flagship — independent vendor, strong reasoning | `x-ai/grok-4.3` |
+        | Gemini 3.5 Flash | Newest Gemini — fast, balanced, good value ($1.50 / $9) | `google/gemini-3.5-flash` |
+        | GPT-5.4 | Near-flagship OpenAI at half the price of 5.5 ($2.50 / $15) | `openai/gpt-5.4` |
+        | DeepSeek V4 Flash | Budget pick — solid code & reasoning ($0.10 / $0.20) | `deepseek/deepseek-v4-flash` |
+        | Grok 4.3 | xAI's flagship — independent vendor, cheap output ($1.25 / $2.50) | `x-ai/grok-4.3` |
+        | Gemini 3.1 Pro | Strongest Gemini reasoning, long context ($2 / $12) | `google/gemini-3.1-pro-preview` |
+        | GPT-5.5 | OpenAI's flagship — premium price ($5 / $30) | `openai/gpt-5.5` |
 
    3. Parse the submitted form. Then:
       - Write the key via `bash <SKILL_DIR>/scripts/set-key.sh` (pipe the key through stdin: `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh`). **Never** use the Edit/Write tools on `.env.local` — virtiofs/OneDrive backed mounts (Windows hosts) silently drop those edits. Always inject via bash redirect.
       - Set the model with `bash <SKILL_DIR>/scripts/set-model.sh <slug>` (validates against the live catalog).
 
-4. **Only fall back from the four slugs above if `set-model.sh` actually rejects them as 404.** Don't pre-emptively "verify" against your own model knowledge — those four slugs are validated and current. The check that matters is `set-model.sh` calling OpenRouter's catalog. If (and only if) it returns "Unknown slug", run `bash <SKILL_DIR>/scripts/list-models.sh <vendor>` and pick the most recent match — and tell the user which slug you substituted and why.
+4. **Only fall back from the six slugs above if `set-model.sh` actually rejects them as 404.** Don't pre-emptively "verify" against your own model knowledge — those six slugs are validated and current. The check that matters is `set-model.sh` calling OpenRouter's catalog. If (and only if) it returns "Unknown slug", run `bash <SKILL_DIR>/scripts/list-models.sh <vendor>` and pick the most recent match — and tell the user which slug you substituted and why.
 
 5. **Verify.**
    ```bash

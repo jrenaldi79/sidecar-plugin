@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 — 2026-06-10 "Cost-Aware Setup"
+
+Setup now shows prices and leads with cost-effective picks (all pricing
+verified against the live OpenRouter catalog, June 2026).
+
+### Changed
+- **Setup model cards: 4 → 6, each with $/M pricing.** Added
+  `google/gemini-3.5-flash` ($1.50/$9 — newest Gemini, cheaper than 3.1 Pro)
+  and `openai/gpt-5.4` ($2.50/$15 — half the price of GPT-5.5). Cards are
+  ordered value-first; GPT-5.5 ($5/$30) and Gemini 3.1 Pro stay available
+  but are labeled premium. Claude Code's AskUserQuestion path shows the
+  first four and names the premium two in the question text.
+- **Cheaper defaults for new installs**: `.env.local` template default is
+  now `google/gemini-3.5-flash`; vendor aliases remap `gemini` →
+  `gemini-3.5-flash` and `gpt` → `gpt-5.4`. Existing installs keep their
+  configured models (state is per-user); remap anytime with
+  `refresh-defaults.sh`.
+
 ## 0.4.0 — 2026-06-10 "Regular Key Only"
 
 Kills the management-key path introduced in 0.3.0 before anyone adopts it.
