@@ -91,7 +91,9 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
 
 3. **Collect the API key + default model via an interactive form. Use the EXACT cards specified below — do not improvise.**
 
-   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, Claude 3.5 Sonnet, Claude 3 Opus, or any other model not in the table below. Use the four slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
+   ⚠️ **Sidecar exists to get adversarial, second-opinion reviews from models *other than* the parent Claude. Do NOT offer an Anthropic/Claude model as a setup option, and never default to one — an Anthropic default defeats the entire purpose.** The user can still explicitly switch to Claude later (see "Switch default model"); just don't surface it during setup.
+
+   ⚠️ **Do NOT use model names you "know" from training data.** Your training data is older than the current OpenRouter catalog. **Specifically, do NOT show:** GPT-4, GPT-4o, GPT-4-turbo, Gemini 2.5 Pro, Gemini 1.5 Pro, or any other model not in the table below. Use the four slugs verbatim. If a slug appears unfamiliar to you, that's expected — it's newer than your training data.
 
    **Steps:**
 
@@ -105,7 +107,7 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
         | Gemini 3.1 Pro | Google's latest reasoning preview — strong on long context | `google/gemini-3.1-pro-preview` |
         | GPT-5.5 | OpenAI's current default — balanced speed and quality | `openai/gpt-5.5` |
         | DeepSeek V4 Flash | Cheap, fast, solid on code & reasoning | `deepseek/deepseek-v4-flash` |
-        | Claude Sonnet 4.6 | Anthropic's mid-tier — closest to the parent Claude | `anthropic/claude-sonnet-4.6` |
+        | Grok 4.3 | xAI's flagship — independent vendor, strong reasoning | `x-ai/grok-4.3` |
 
    3. Parse the submitted form. Then:
       - Write the key via `bash <SKILL_DIR>/scripts/set-key.sh` (pipe the key through stdin: `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh`). **Never** use the Edit/Write tools on `.env.local` — virtiofs/OneDrive backed mounts (Windows hosts) silently drop those edits. Always inject via bash redirect.
@@ -146,14 +148,16 @@ This table is a *recommendation snapshot* (current as of April 2026). OpenRouter
 | User says | Default slug (Apr 2026) |
 |---|---|
 | Gemini, Google | `google/gemini-3.1-pro-preview` |
-| Claude, Anthropic, Sonnet | `anthropic/claude-sonnet-4.6` |
 | GPT, ChatGPT, OpenAI, GPT-5 | `openai/gpt-5.5` |
 | DeepSeek | `deepseek/deepseek-v4-flash` |
-| Llama, Meta | `meta-llama/llama-3.3-70b-instruct` |
+| Grok, xAI | `x-ai/grok-4.3` |
+| Llama, Meta | `meta-llama/llama-4-maverick` |
 
-If the user names a *specific* model ("ask Claude Opus 4.6"), search the catalog:
+Anthropic/Claude is deliberately omitted — Sidecar is for second opinions from a *different* model than the parent Claude. If the user *explicitly* asks for Claude anyway, honor it: search the catalog and switch to the matching slug (`list-models.sh claude`).
+
+If the user names a *specific* model ("ask GPT-5 Codex"), search the catalog:
 ```bash
-bash <SKILL_DIR>/scripts/list-models.sh claude opus
+bash <SKILL_DIR>/scripts/list-models.sh gpt-5
 ```
 
 ### 2. Switch the proxy's model only if needed
@@ -237,11 +241,11 @@ You'll see tool-use events, transcript-grep activity, and any upstream errors as
 
 ## Other workflows
 
-### Switch default model ("switch sidecar to claude sonnet")
+### Switch default model ("switch sidecar to grok")
 
 ```bash
-bash <SKILL_DIR>/scripts/list-models.sh claude sonnet
-bash <SKILL_DIR>/scripts/set-model.sh anthropic/claude-sonnet-4.6
+bash <SKILL_DIR>/scripts/list-models.sh grok
+bash <SKILL_DIR>/scripts/set-model.sh x-ai/grok-4.3
 ```
 
 ### Test ("test sidecar")
