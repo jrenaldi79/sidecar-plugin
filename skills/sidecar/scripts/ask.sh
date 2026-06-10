@@ -88,10 +88,7 @@ if [ "$CONTINUE" -eq 1 ]; then
     echo "        (sessions only survive within one Cowork session's sandbox)" >&2
     exit 1
   fi
-  LAST_SESSION="$(tail -1 "$SESSIONS_FILE")"
-  RESUME_SID="$(printf '%s' "$LAST_SESSION" | cut -f2)"
-  RESUME_SLUG="$(printf '%s' "$LAST_SESSION" | cut -f3)"
-  RESUME_CWD="$(printf '%s' "$LAST_SESSION" | cut -f4)"
+  IFS=$'\t' read -r _ RESUME_SID RESUME_SLUG RESUME_CWD <<< "$(tail -1 "$SESSIONS_FILE")"
   if [ -z "$RESUME_SID" ]; then
     echo "ask.sh: malformed $SESSIONS_FILE — cannot --continue" >&2
     exit 1
@@ -125,6 +122,14 @@ BASE_PORT="${PORT:-3000}"
 # 180s default: reasoning + tool-use chains routinely exceed 60s. The proxy
 # has its own 120s upstream-fetch timeout (anthropic-proxy-patched.mjs P2).
 MAX_RUN_SECONDS="${MAX_RUN_SECONDS:-180}"
+# timeout(1) is GNU coreutils — in the Linux sandbox always, on stock macOS
+# often not. Degrade to no wall-clock guard rather than failing outright.
+TIMEOUT_CMD=()
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD=( timeout --foreground "$MAX_RUN_SECONDS" )
+else
+  echo "ask.sh: timeout(1) not found — running without the ${MAX_RUN_SECONDS}s guard" >&2
+fi
 
 boot_proxy "$BASE_PORT" "$LOG" || exit 1
 # The CLI must target the port we actually bound — never the .env.local
@@ -158,10 +163,7 @@ done
 if [ "$FOLD" -eq 1 ]; then
   FOLD_HINT="End your reply with a fold block in exactly this shape:
 --- FOLD ---
-Answer: <one-sentence answer>
-Key evidence: <the 1-3 facts your answer rests on>
-Confidence: <high|medium|low>
-Consulted: <transcript | files | none>"
+Answer: <one sentence> / Key evidence: <the 1-3 facts it rests on> / Confidence: <high|medium|low> / Consulted: <transcript | files | none>"
   SYS_HINT="${SYS_HINT:+$SYS_HINT
 
 }$FOLD_HINT"
@@ -181,14 +183,14 @@ run_subclaude() {
       ANTHROPIC_BASE_URL="$BASE_URL" \
       ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-proxy-ignores-this}" \
       ANTHROPIC_AUTH_TOKEN="" \
-      timeout --foreground "$MAX_RUN_SECONDS" claude "${CLAUDE_ARGS[@]}" \
+      ${TIMEOUT_CMD[@]+"${TIMEOUT_CMD[@]}"} claude "${CLAUDE_ARGS[@]}" \
       > "$OUT_JSON" 2> >(tee -a "$SUB_ERR" >&2)
   else
     printf '%s' "$PROMPT" | \
       ANTHROPIC_BASE_URL="$BASE_URL" \
       ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-proxy-ignores-this}" \
       ANTHROPIC_AUTH_TOKEN="" \
-      timeout --foreground "$MAX_RUN_SECONDS" claude "${CLAUDE_ARGS[@]}" \
+      ${TIMEOUT_CMD[@]+"${TIMEOUT_CMD[@]}"} claude "${CLAUDE_ARGS[@]}" \
       > "$OUT_JSON" 2>> "$SUB_ERR"
   fi
 }
@@ -209,7 +211,8 @@ if [ "$RC" -ne 0 ] && ! kill -0 "$PROXY_PID" 2>/dev/null; then
 fi
 DURATION=$(( SECONDS - START_TS ))
 
-kill "$PROXY_PID" 2>/dev/null
+# wait reaps the job quietly — without it bash prints "Terminated" to stderr.
+{ kill "$PROXY_PID" && wait "$PROXY_PID"; } 2>/dev/null
 
 # ---------------- output + bookkeeping ----------------
 parse_result() {
@@ -232,8 +235,7 @@ with open(sys.argv[2], "w") as m:
 PY
 }
 
-# Authoritative routing record — printed by this script from config, never
-# taken from the model (models hallucinate their identity).
+# Authoritative routing record, from config — models hallucinate their identity.
 printf '[sidecar: %s]\n' "$RESOLVED_SLUG"
 PARSED=0
 if [ -s "$OUT_JSON" ] && parse_result; then

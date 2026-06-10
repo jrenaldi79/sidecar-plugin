@@ -67,7 +67,7 @@ boot_proxy() {
       fi
       sleep 0.25
     done
-    kill "$PROXY_PID" 2>/dev/null || true
+    { kill "$PROXY_PID" && wait "$PROXY_PID"; } 2>/dev/null || true
   done
   echo "boot_proxy: proxy did not come up after 3 attempts — log at $log" >&2
   return 1
