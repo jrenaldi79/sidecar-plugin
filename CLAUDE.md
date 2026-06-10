@@ -92,7 +92,7 @@ skills/sidecar/scripts/find-transcript.sh          # locate the parent Cowork se
 skills/sidecar/scripts/list-models.sh              # fetch the live OpenRouter model catalog, optionally filtered.
 skills/sidecar/scripts/refresh-defaults.sh         # view or update the vendor → model alias map that
 skills/sidecar/scripts/set-key.sh                  # inject the OpenRouter API key into .env.local.
-skills/sidecar/scripts/set-model.sh                # change the model Sidecar forwards to.
+skills/sidecar/scripts/set-model.sh                # change the PERSISTENT default model Sidecar forwards to.
 skills/sidecar/scripts/setup.sh                    # first-run configuration for Sidecar (plugin install).
 skills/sidecar/scripts/start.sh                    # boot the Sidecar proxy.
 skills/sidecar/scripts/status.sh                   # report whether Sidecar is running and its current configuration.

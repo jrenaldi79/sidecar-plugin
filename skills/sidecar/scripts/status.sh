@@ -41,3 +41,31 @@ if (echo > "/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
 else
   echo "  port $PORT: not listening"
 fi
+
+# Recent activity — written by ask.sh, one line per run
+# (UTC time, model, seconds, exit code, input/output tokens).
+HIST="$SIDECAR_STATE_DIR/history.log"
+if [ -s "$HIST" ]; then
+  echo "  recent asks:"
+  tail -5 "$HIST" | sed 's/^/    /'
+fi
+
+# OpenRouter credit — best-effort, silently skipped on any failure.
+if [ -n "${OPENROUTER_API_KEY:-}" ] && [ "${OPENROUTER_API_KEY:0:6}" = "sk-or-" ]; then
+  CREDIT=$(curl -sS --max-time 5 "https://openrouter.ai/api/v1/key" \
+    -H "Authorization: Bearer $OPENROUTER_API_KEY" 2>/dev/null \
+    | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)["data"]
+    limit = d.get("limit")
+    usage = d.get("usage") or 0
+    lim = "unlimited" if limit is None else "$%.2f limit" % limit
+    print("$%.2f used / %s" % (usage, lim))
+except Exception:
+    pass
+' 2>/dev/null)
+  if [ -n "$CREDIT" ]; then
+    echo "  openrouter credit: $CREDIT"
+  fi
+fi

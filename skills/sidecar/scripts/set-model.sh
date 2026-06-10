@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# set-model.sh — change the model Sidecar forwards to.
+# set-model.sh — change the PERSISTENT default model Sidecar forwards to.
+# For a one-off routing decision, prefer `ask.sh --model <slug-or-vendor>`,
+# which overrides per call without touching .env.local.
 #
 # Usage:
 #   set-model.sh <slug>                   # set both COMPLETION_MODEL and REASONING_MODEL
@@ -11,6 +13,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/_locate.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/_runtime.sh"
 
 ENV_FILE="$SIDECAR_STATE_DIR/.env.local"
 
@@ -81,15 +85,16 @@ echo "  REASONING_MODEL  = $REASONING"
 # Restart proxy if running
 PIDS=$(pgrep -f "node.*sidecar.*proxy/bundle\.cjs" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
+  RESTART_LOG="$(find_workdir)/sidecar.log"
   echo "restarting proxy (was pid: $PIDS)..."
   kill $PIDS 2>/dev/null
   sleep 0.5
-  bash "$SCRIPT_DIR/start.sh" > /tmp/sidecar.log 2>&1 &
+  bash "$SCRIPT_DIR/start.sh" > "$RESTART_LOG" 2>&1 &
   sleep 1
   if (echo > "/dev/tcp/127.0.0.1/${PORT:-3000}") 2>/dev/null; then
     echo "proxy back up on port ${PORT:-3000}"
   else
-    echo "warning: proxy didn't come back up — check /tmp/sidecar.log" >&2
+    echo "warning: proxy didn't come back up — check $RESTART_LOG" >&2
   fi
 else
   echo "proxy not running; new model will apply on next start.sh"

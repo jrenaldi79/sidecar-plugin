@@ -57,12 +57,19 @@ matched = [m for m in data if all(f in m['id'].lower() for f in filters)]
 if not matched:
     print('(no models matched filter)')
     sys.exit(0)
-print(f'{\"slug\":55} {\"context\":>10}  short description')
-print('-' * 100)
+def per_million(m, key):
+    # catalog pricing values are \$/token strings; show \$/M tokens
+    try:
+        v = float((m.get('pricing') or {}).get(key))
+    except (TypeError, ValueError):
+        return '?'
+    return 'free' if v == 0 else '\$%.2f' % (v * 1e6)
+print(f'{\"slug\":55} {\"context\":>10} {\"\$/M in\":>9} {\"\$/M out\":>9}  short description')
+print('-' * 116)
 for m in matched:
     ctx = m.get('context_length') or '?'
-    desc = (m.get('name') or '')[:38]
-    print(f\"{m['id'][:55]:55} {str(ctx):>10}  {desc}\")
+    desc = (m.get('name') or '')[:30]
+    print(f\"{m['id'][:55]:55} {str(ctx):>10} {per_million(m, 'prompt'):>9} {per_million(m, 'completion'):>9}  {desc}\")
 print()
 print(f'{len(matched)} model(s) matched.')
 "
