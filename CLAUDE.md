@@ -171,6 +171,19 @@ Full release checklist:
 - [ ] `bash tests/run-integration.sh` green; `test.sh` if a key is configured
 - [ ] Push to GitHub — clients pick up the new version via `/plugin marketplace update` + `/plugin update sidecar` (or auto-update)
 
+### Client-side pickup — marketplace cache gotcha (hit 2026-06-10)
+
+`/plugin marketplace add` clones the repo ONCE into `~/.claude/plugins/marketplaces/<name>` and **never re-pulls on its own**. Everything downstream reads that frozen clone: `/plugin update sidecar` compares versions against the *cached* manifest (sees no change, keeps the old copy), and even uninstalling/reinstalling the plugin serves the stale snapshot. Symptom: client shows an ancient version (e.g. 0.1.0) no matter how many releases were pushed.
+
+Fix, in this order — the marketplace refresh MUST come first:
+
+```
+/plugin marketplace update sidecar-marketplace   # name from marketplace.json; /plugin marketplace list if unsure
+/plugin update sidecar
+```
+
+Stubborn cache: `/plugin marketplace remove <name>` then re-add — forces a fresh clone at HEAD. When walking a user through an upgrade, never tell them just `/plugin update`; it is a no-op without the marketplace update.
+
 ---
 
 ## Logging & Debugging
