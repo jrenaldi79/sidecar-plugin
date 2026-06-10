@@ -37,9 +37,16 @@ async function waitForListen(port, timeoutMs = 8000) {
 
 export async function startProxy({ upstreamUrl, env = {} }) {
   const port = await freePort()
+  // Hermetic child env: drop inherited SIDECAR_* so a developer's shell
+  // (e.g. exported SIDECAR_STREAMING=false) can't silently change which
+  // proxy code path a test pins. Per-test `env` overrides still apply last.
+  const inherited = { ...process.env }
+  for (const k of Object.keys(inherited)) {
+    if (k.startsWith('SIDECAR_') && k !== 'SIDECAR_TEST_ENTRY') delete inherited[k]
+  }
   const proc = spawn(process.execPath, [ENTRY], {
     env: {
-      ...process.env,
+      ...inherited,
       PORT: String(port),
       ANTHROPIC_PROXY_BASE_URL: upstreamUrl,
       COMPLETION_MODEL: 'fake/completion-model',
