@@ -197,6 +197,20 @@ fastify.post('/v1/messages', async (request, reply) => {
         result[key] = removeUriFormat(schema[key]);
       }
       }
+      // PATCH P4 — Google's GenerateContentRequest validator rejects schemas
+      // whose `required` names properties that aren't defined ("property is
+      // not defined", INVALID_ARGUMENT). OpenAI/DeepSeek tolerate the same
+      // schemas, and real Claude CLI / MCP tool schemas do ship such entries
+      // — so filter `required` to defined properties at every nesting level,
+      // and drop the key entirely if nothing survives (an empty `required`
+      // is itself invalid in some validators).
+      if (Array.isArray(result.required)) {
+        const defined = result.properties && typeof result.properties === 'object'
+          ? new Set(Object.keys(result.properties))
+          : new Set();
+        result.required = result.required.filter(r => defined.has(r));
+        if (result.required.length === 0) delete result.required;
+      }
       return result;
     };
 
