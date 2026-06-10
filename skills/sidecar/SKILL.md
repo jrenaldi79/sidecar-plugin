@@ -1,6 +1,6 @@
 ---
 name: sidecar
-description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "compare models on X", "ask Gemini AND GPT", "ask Gemini a follow-up", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", "what has sidecar cost me", or any phrasing that routes a prompt to a non-default LLM.
+description: Run any OpenRouter-hosted LLM (Gemini, GPT, DeepSeek, Grok, etc.) as a Claude CLI subagent through a vendored local Anthropic-format proxy. Use when the user asks any of - "ask Gemini to ...", "what does ChatGPT think about ...", "have DeepSeek summarize ...", "fork this to GPT", "get a second opinion from another model", "ask another model", "compare models on X", "ask Gemini AND GPT", "ask Gemini a follow-up", "set up sidecar", "start sidecar", "test sidecar", "switch sidecar to X", "use sidecar with Y", "what sidecar models are available", "what has sidecar cost me", "what can sidecar do", "sidecar help", "how do I use sidecar", "explain sidecar", or any phrasing that routes a prompt to a non-default LLM or asks what Sidecar is.
 ---
 
 # Sidecar — call any OpenRouter LLM as a Claude CLI subagent
@@ -31,6 +31,8 @@ The user's `.env.local` lives in a writable state directory under whichever fold
 
 ## Step 0 — Always start here: is Sidecar configured?
 
+**Exception — discovery requests skip the config gate.** If the user is asking what Sidecar *is* or *can do* ("what can sidecar do", "sidecar help", "how do I use this") rather than asking to run something, go to **Help mode** below; run the config check only to report status at the end of the tour.
+
 ```bash
 STATE=$(ls -d "$HOME/mnt"/*/sidecar-state "$HOME/mnt"/*/.sidecar 2>/dev/null | head -1)
 if [ -z "$STATE" ] || [ ! -f "$STATE/.env.local" ]; then echo "MODE=needs-setup"
@@ -43,6 +45,23 @@ else echo "MODE=ready"; fi
 - **`needs-setup`** — no state dir / no `.env.local`. Run `setup.sh`, then prompt for the OpenRouter key.
 - **`needs-key`** — `.env.local` present but the API key is still the placeholder. Pipe it in via `echo "<key>" | bash <SKILL_DIR>/scripts/set-key.sh` (never the Edit/Write tools, never echo the key back).
 - **`ready`** — go straight to **Use** for the user's actual request.
+
+---
+
+## Help mode — "what can sidecar do?", "sidecar help"
+
+When the request is discovery rather than execution, don't run scripts up front — give this capability tour in your own words, one example phrase per feature. This table is the canonical tour; the setup wrap-up (step 6) and the `/sidecar:help` command both reference it, so it lives only here.
+
+| Capability | The user says | What happens |
+|---|---|---|
+| Second opinion | "ask Gemini to review this plan" | The prompt runs on another model as a full Claude subagent — it can read files and this conversation, not just chat |
+| Compare models | "ask Gemini AND GPT how to structure this" | One prompt forks to several models in parallel; answers come back labeled, with disagreements surfaced |
+| Follow-ups | "ask Gemini what it meant by X" | Continues the previous sidecar conversation with its context intact |
+| Structured fold | "…and fold the answer back" | The answer returns as answer / evidence / confidence / sources, ready to integrate into ongoing work |
+| Let it write code | "have DeepSeek fix this and run the tests" | Sidecars are read-only by default; asking for fixes/execution enables full tools |
+| Models & cost | "switch sidecar to grok", "what has sidecar cost me" | Change the default model, browse the live catalog with $/M pricing, see per-ask history + remaining credit |
+
+Close the tour with Sidecar's current state: run the Step 0 config check (plus `status.sh` if ready), then either offer setup or suggest a first ask tailored to what the user is currently working on.
 
 ---
 
@@ -69,6 +88,8 @@ echo "<api-key-from-form>" | bash <SKILL_DIR>/scripts/set-key.sh
 # (5) Set the model AND verify in one bash call (chain with &&):
 bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
   bash <SKILL_DIR>/scripts/test.sh
+
+# (6) On 8/8 PASS: give the quick capability tour (see step 6 below — no scripts to run)
 ```
 
 **Batch where you can.** Any two scripts with a clear linear dependency belong in the same bash call — `set-model.sh && test.sh`, `setup.sh && cat <state>/.env.local`, etc. Each separate bash invocation is a tool round-trip; chains save them.
@@ -120,6 +141,11 @@ bash <SKILL_DIR>/scripts/set-model.sh <slug-from-form> && \
    bash <SKILL_DIR>/scripts/test.sh
    ```
    8 checks. 8/8 PASS means everything works.
+
+6. **Wrap up with the quick tour.** A setup that ends at "8/8 PASS" leaves the user not knowing what to ask for — most installed because they heard "ask Gemini things" and will never discover compare, follow-ups, or fold on their own. After a passing test:
+   - Give a compressed version of the **Help mode** tour — one line per capability, headline phrases only, NOT the full table. Keep the whole wrap-up to ~6 lines so the "it works" signal isn't buried under feature documentation.
+   - Offer a first ask tailored to what the user is currently working on ("want to try it? e.g. *ask Gemini for a second opinion on <their current task>*").
+   - Mention they can say **"sidecar help"** (or run `/sidecar:help`) anytime for the full rundown.
 
 ---
 
