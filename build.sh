@@ -53,6 +53,7 @@ rm -f "$TMPZIP"
 echo "zipping..."
 ( cd "$DIR" && zip -qr "$TMPZIP" . \
     -x '.git/*' '.git' \
+       '.claude/*' '.claude' \
        '*.DS_Store' '.DS_Store' \
        "$OUTNAME" 'build/*' 'dist/*' \
        'skills/sidecar/proxy/node_modules/*' \
