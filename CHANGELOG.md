@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.1 — 2026-06-10
+
+- **Effort levels live-verified against OpenRouter** (direct API, 2 models ×
+  3 levels, plus the proxy path at low and high). All levels accepted by
+  both vendors; magnitude is provider-specific — Gemini 3.5 Flash scales
+  visibly (180/254/444 reasoning tokens for low/medium/high), GPT-5.4-nano
+  barely differentiates. Documented expectation: effort is a forwarded
+  request, not a guarantee.
+- **Compare-set guidance**: when the user doesn't name models, SKILL.md now
+  tells Claude to default to the `gemini gpt deepseek` trio, announce the
+  choice, and cap fan-out at ~3 (each fork bills separately). Deliberately
+  per-call, NOT a setup setting — the right comparison set depends on the
+  question.
+- **`kimi` vendor alias** seeded (`moonshotai/kimi-k2.6`) so "ask Kimi …"
+  resolves like the other vendor words.
+
 ## 0.5.0 — 2026-06-10 "Reasoning Effort"
 
 Users can now control reasoning effort — the biggest per-call cost lever

@@ -206,7 +206,7 @@ If you find yourself reaching for `curl http://127.0.0.1:3000/v1/messages` to sa
 
 ### 1. Resolve the vendor → model
 
-The vendor → slug map lives in `<state>/defaults.env` (seeded by `setup.sh`, per-user, refreshable — it does NOT live in this document, because the catalog turns over). `ask.sh --model` resolves bare vendor words (**gemini, gpt, deepseek, grok, llama**) through it automatically, so for vendor-level requests there is nothing to resolve yourself.
+The vendor → slug map lives in `<state>/defaults.env` (seeded by `setup.sh`, per-user, refreshable — it does NOT live in this document, because the catalog turns over). `ask.sh --model` resolves bare vendor words (**gemini, gpt, deepseek, grok, kimi, llama**) through it automatically, so for vendor-level requests there is nothing to resolve yourself.
 
 If a slug has gone stale (upstream says "not a valid model ID"), refresh the alias and retry:
 
@@ -273,6 +273,8 @@ bash <SKILL_DIR>/scripts/compare.sh "<prompt>" gemini gpt deepseek
 ```
 
 Each fork is a full ask.sh subagent running concurrently on its own proxy/port; output is one labeled section per model (failed forks show their error tail inline without sinking the rest). **Launch compare.sh with `run_in_background: true` and read the result via TaskOutput** — N parallel reasoning chains will exceed the bash tool's 45s ceiling. The fold is YOUR job afterwards: synthesize the sections, surface where the models disagree, and attribute claims to the models that made them.
+
+**If the user doesn't name specific models** ("compare a few models on this"), default to the vendor-alias trio `gemini gpt deepseek` and tell the user which models you chose so they can adjust. Pick a different set when the task obviously calls for it (code-heavy → `deepseek kimi gpt`). Keep the fan-out to ~3 unless the user asks for more — every fork bills separately. The comparison set is deliberately a per-call choice, not a setup setting: the right set depends on the question.
 
 ---
 
