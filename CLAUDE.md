@@ -167,6 +167,7 @@ The real end-to-end test (`test.sh`) needs a live OpenRouter key and network, so
 - **Cowork's plugin validator rejects `@` in zip paths** — that's why deps are esbuild-bundled instead of shipping `node_modules` (scoped packages = `@`-paths).
 - **`build.sh` zip excludes any filename containing a space** (`'* *'` pattern). A file with a space silently vanishes from the shipped plugin.
 - **Thinking models (Gemini 3.x Pro, GPT-5.5 reasoning) require `SIDECAR_STREAMING=true`** — the non-streaming path drops the `reasoning` field.
+- **Gemini rejects the whole request over one bad tool schema, and the error blames the WRONG property** — "required[N]: property is not defined" fires for innocent siblings because Google's converter discards the entire `properties` map around an unsupported construct. Triggers handled by the proxy sanitizer (P4/P5): ghost `required` entries, non-string `enum`s. Verified harmless: `$ref`/`$defs`, `format: email`. When a new one appears, bisect the captured payload tool-by-tool, then the culprit schema construct-by-construct (2026-06-09 P5 hunt is the template).
 - **Target bash 3.2 + BSD userland**: scripts run on macOS hosts and Linux sandboxes. No `grep -P`, no `mapfile`, no `declare -A`, no `readlink -f`. BSD awk also rejects multi-line `-v` strings — splice files with `sed -n` ranges instead.
 - **Cowork sandboxes lock down `/tmp`** — probe with `[ -w ]` before writing logs (see `test.sh`).
 - **`.claude/*` is gitignored EXCEPT `settings.json` and `rules/`** — don't "fix" the gitignore back to `.claude/`.
