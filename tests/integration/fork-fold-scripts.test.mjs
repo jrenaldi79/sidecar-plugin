@@ -3,7 +3,7 @@
 // fold contract, read-only tool defaults, retry-on-proxy-death, compare
 // fan-out, and the defaults.env alias map. Uses the fake `claude` shim from
 // cli-harness.mjs — no network, no key, no real CLI.
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import net from 'node:net'
@@ -12,7 +12,12 @@ import os from 'node:os'
 import { startFakeOpenRouter } from '../helpers/fake-openrouter.mjs'
 import {
   makeCliEnv, runScript, runtimeEval, spawnStartSh, freePort, hasLsof,
+  trackedTempDir, cleanupTempRoots,
 } from '../helpers/cli-harness.mjs'
+
+// Remove every temp dir the harness created (.claude/rules/testing.md:
+// tests must clean up after themselves; the host machine isn't ephemeral).
+after(() => cleanupTempRoots())
 
 // ---------- _runtime.sh helpers ----------
 
@@ -116,8 +121,8 @@ test('ask.sh: --fold appends the fold contract to the system prompt', async () =
 
 test('ask.sh: --add-dir paths are forwarded to the CLI', async () => {
   const env = makeCliEnv()
-  const extraA = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-extra-'))
-  const extraB = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-extra-'))
+  const extraA = trackedTempDir('sidecar-extra-')
+  const extraB = trackedTempDir('sidecar-extra-')
   const r = await runScript(env, 'ask.sh',
     ['--model', 'gemini', '--add-dir', extraA, '--add-dir', extraB, 'say ok'])
   assert.equal(r.code, 0, r.stderr)

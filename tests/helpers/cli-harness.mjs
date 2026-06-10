@@ -71,8 +71,23 @@ const DEFAULTS_ENV = [
   '',
 ].join('\n')
 
+// Every temp dir created here, for the consuming test file to remove in an
+// after() hook — tests must clean up after themselves (.claude/rules/testing.md).
+export const tempRoots = []
+export function cleanupTempRoots() {
+  for (const r of tempRoots) fs.rmSync(r, { recursive: true, force: true })
+  tempRoots.length = 0
+}
+
+// mkdtemp wrapper that registers the dir for cleanupTempRoots().
+export function trackedTempDir(prefix) {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tempRoots.push(d)
+  return d
+}
+
 export function makeCliEnv() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-cli-'))
+  const root = trackedTempDir('sidecar-cli-')
   const home = path.join(root, 'home')
   const state = path.join(root, 'state')
   const shimDir = path.join(root, 'bin')
