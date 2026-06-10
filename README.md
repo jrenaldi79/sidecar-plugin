@@ -26,28 +26,31 @@ sidecar-plugin/
 │   └── marketplace.json       # marketplace listing for install-from-repo
 ├── build.sh                   # packages everything into ../sidecar.plugin
 ├── SETUP-GIT.md               # why git runs on the host, not in Cowork
-└── skills/sidecar/
-    ├── SKILL.md               # skill definition (loaded by Cowork as `sidecar`)
-    ├── .env.local.template    # template for per-user config
-    ├── defaults.env.template  # vendor → model alias map (seeded into state dir)
-    ├── proxy/
-    │   ├── bundle.cjs         # vendored anthropic-proxy + deps (esbuild, single file)
-    │   ├── wrapper.mjs        # entry point; honors HTTP(S)_PROXY in sandboxes
-    │   ├── anthropic-proxy-patched.mjs
-    │   └── package.json / package-lock.json
-    └── scripts/
-        ├── setup.sh           # idempotent first-run setup
-        ├── set-key.sh         # store your OpenRouter API key
-        ├── start.sh / stop.sh / status.sh
-        ├── test.sh            # full end-to-end verification
-        ├── ask.sh             # run a prompt as a subagent (--model/--continue/--fold/...)
-        ├── compare.sh         # fork one prompt to N models in parallel
-        ├── list-models.sh     # query the live OpenRouter catalog (with $/M pricing)
-        ├── set-model.sh       # change the persistent default model
-        ├── refresh-defaults.sh# view/update the vendor → model alias map
-        ├── find-transcript.sh # locate parent-conversation transcript for context self-pull
-        ├── _locate.sh         # state-dir discovery helper
-        └── _runtime.sh        # shared helpers (port probing, proxy boot, alias resolution)
+├── skills/sidecar/
+│   ├── SKILL.md               # skill definition (loaded by Cowork as `sidecar`)
+│   ├── .env.local.template    # template for per-user config
+│   ├── defaults.env.template  # vendor → model alias map (seeded into state dir)
+│   ├── proxy/
+│   │   ├── bundle.cjs         # vendored anthropic-proxy + deps (esbuild, single file)
+│   │   ├── wrapper.mjs        # entry point; honors HTTP(S)_PROXY in sandboxes
+│   │   ├── anthropic-proxy-patched.mjs
+│   │   └── package.json / package-lock.json
+│   └── scripts/
+│       ├── setup.sh           # idempotent first-run setup
+│       ├── set-key.sh         # store your OpenRouter API key
+│       ├── start.sh / stop.sh / status.sh
+│       ├── test.sh            # full end-to-end verification
+│       ├── ask.sh             # run a prompt as a subagent (--model/--continue/--fold/...)
+│       ├── compare.sh         # fork one prompt to N models in parallel
+│       ├── list-models.sh     # query the live OpenRouter catalog (with $/M pricing)
+│       ├── set-model.sh       # change the persistent default model
+│       ├── refresh-defaults.sh# view/update the vendor → model alias map
+│       ├── find-transcript.sh # locate parent-conversation transcript for context self-pull
+│       ├── _locate.sh         # state-dir discovery helper
+│       └── _runtime.sh        # shared helpers (port probing, proxy boot, alias resolution)
+└── tests/                     # dev-only, never shipped in the .plugin
+    ├── integration/           # bash tests/run-integration.sh — no network, no key
+    └── live/matrix.sh         # real-OpenRouter 3-provider matrix (run before release)
 ```
 
 `node_modules/` exists only at build time and is gitignored — `build.sh` regenerates it from the lockfile and bundles it into `bundle.cjs`.
@@ -103,6 +106,8 @@ bash skills/sidecar/scripts/compare.sh "is this API design sound?" gemini gpt de
 bash skills/sidecar/scripts/list-models.sh deepseek      # browse the catalog ($/M pricing included)
 bash skills/sidecar/scripts/status.sh                    # config + recent asks + remaining credit
 bash skills/sidecar/scripts/test.sh                      # end-to-end check
+bash tests/run-integration.sh                            # Tier 1: mock-based, free
+bash tests/live/matrix.sh                                # Tier 2: live, needs key
 ```
 
 ### Fork & Fold features
