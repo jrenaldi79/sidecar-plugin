@@ -98,9 +98,11 @@ skills/sidecar/scripts/start.sh                    # boot the Sidecar proxy.
 skills/sidecar/scripts/status.sh                   # report whether Sidecar is running and its current configuration.
 skills/sidecar/scripts/stop.sh                     # kill any running Sidecar proxy.
 skills/sidecar/scripts/test.sh                     # verify the Sidecar plugin install end-to-end.
+tests/helpers/cli-harness.mjs                      # hermetic environment for integration-testing the Sidecar
 tests/helpers/fake-openrouter.mjs                  # programmable mock of OpenRouter's
 tests/helpers/proxy-harness.mjs                    # spawn the real proxy as a child process against a fake
 tests/integration/error-resilience.test.mjs        # Tier 1 tests for proxy error handling:
+tests/integration/fork-fold-scripts.test.mjs       # integration locks for the 0.2.0 Fork & Fold
 tests/integration/request-translation.test.mjs     # regression locks for Anthropic -> OpenAI
 tests/integration/response-nonstreaming.test.mjs
 tests/integration/response-streaming.test.mjs
