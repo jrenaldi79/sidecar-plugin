@@ -59,6 +59,8 @@ echo "zipping..."
        'scripts/*' 'scripts' 'CLAUDE.md' '.checks-passed' \
        'skills/sidecar/proxy/node_modules/*' \
        'skills/sidecar/proxy/node_modules' \
+       'tests/*' 'tests' \
+       'docs/*' 'docs' \
        '*/test/*' '*/tests/*' \
        '* *' '*/* */*' \
 )
