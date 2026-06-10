@@ -13,7 +13,8 @@
 //        retained because thinking models (Gemini 3.x Pro) emit reasoning
 //        only on the streaming path; non-streaming truncates them.
 //   P1 — try/catch around JSON.parse of tool_call arguments (line ~209)
-//   P2 — AbortSignal.timeout(120000) on the upstream fetch
+//   P2 — AbortSignal.timeout on the upstream fetch (default 120s,
+//        overridable via $SIDECAR_UPSTREAM_TIMEOUT_MS for tests)
 //   P3 — style-aware tool-arg accumulator: handles both cumulative deltas
 //        (Gemini) and incremental fragments (OpenAI) in the streaming path
 //
@@ -238,7 +239,8 @@ fastify.post('/v1/messages', async (request, reply) => {
       method: 'POST',
       headers,
       body: JSON.stringify(openaiPayload),
-      signal: AbortSignal.timeout(120000)
+      // PATCH P2 (amended): timeout overridable for tests; default unchanged.
+      signal: AbortSignal.timeout(Number(process.env.SIDECAR_UPSTREAM_TIMEOUT_MS) || 120000)
     });
 
     if (!openaiResponse.ok) {
